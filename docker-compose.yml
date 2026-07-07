@@ -1,0 +1,94 @@
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aipq}
+      POSTGRES_USER: ${POSTGRES_USER:-aipq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aipq_local_2026}
+    ports:
+      - "5433:5432"
+    volumes:
+      - aipq_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aipq}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [aipq]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    networks: [aipq]
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AIPQ_DATABASE_URL: postgresql://${POSTGRES_USER:-aipq}:${POSTGRES_PASSWORD:-aipq_local_2026}@db:5432/${POSTGRES_DB:-aipq}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-}
+      AIPQ_WEBHOOK_SECRET: ${AIPQ_WEBHOOK_SECRET:-}
+      AI_ENGINE_URL: http://ai-engine:8002
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks: [aipq]
+
+  ai-engine:
+    build:
+      context: ./ai-engine
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AIPQ_DATABASE_URL: postgresql://${POSTGRES_USER:-aipq}:${POSTGRES_PASSWORD:-aipq_local_2026}@db:5432/${POSTGRES_DB:-aipq}
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_DEPLOYMENT_NAME: ${AZURE_OPENAI_DEPLOYMENT_NAME:-}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-02-01}
+      BACKEND_URL: http://backend:8001
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks: [aipq]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on: [backend]
+    environment:
+      VITE_API_URL: http://localhost:8001
+      VITE_WS_URL: ws://localhost:8001
+    ports:
+      - "3001:3001"
+    networks: [aipq]
+
+networks:
+  aipq:
+
+volumes:
+  aipq_pgdata:
