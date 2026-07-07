@@ -26,7 +26,13 @@ router = APIRouter(prefix="/prompts", tags=["prompts"])
 
 
 def _require_own_project(auth: AuthContext, project_id: int) -> None:
-    if auth.project_id != project_id:
+    """
+    A project's api_key may only touch its own data. A dashboard JWT is an
+    admin session with cross-project visibility (matches the same
+    distinction already made in routers/projects.py) — only api_key callers
+    get this ownership check.
+    """
+    if auth.via == "api_key" and auth.project_id != project_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Credential does not belong to this project")
 
 

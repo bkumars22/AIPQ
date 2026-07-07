@@ -45,6 +45,26 @@ docker compose up --build
 - AI Engine: http://localhost:8002
 - Dashboard: http://localhost:3001
 
+The dashboard has no login page yet — it authenticates with a dashboard JWT
+(admin session, cross-project visibility) read from `frontend/.env`'s
+`VITE_DEV_JWT`. Mint one with:
+
+```bash
+cd backend
+python -c "
+from auth.jwt import create_access_token
+print(create_access_token(subject='admin', extra_claims={'project_id': 0}))
+"
+```
+
+Then run the frontend separately for hot-reload during development:
+
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:3001
+```
+
 ## SDK in 5 lines
 
 ```python
@@ -63,13 +83,21 @@ Every call checks whether the prompt text changed since the last deployed versio
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | FastAPI, Python 3.11, JWT auth |
-| AI Engine | LangGraph, deepeval, scikit-learn (IsolationForest), SHAP |
-| Frontend | React 18, TypeScript, Tailwind, Recharts |
+| Backend | FastAPI, Python 3.11, JWT (dashboard) + api_key (SDK) dual auth |
+| AI Engine | LangGraph, deepeval (GEval), scikit-learn (IsolationForest), SHAP |
+| Frontend | React 19, TypeScript, Vite, Tailwind v4, React Query |
 | Database | PostgreSQL 15 + pgvector |
 | Cache | Redis |
 | CI/CD | GitHub Actions, reusable `aipq-evaluate` action |
 
 ## Status
 
-Early build — architecture, schema, SDK, backend, evaluation pipeline, drift detection, and dashboard scaffolded. ARIA is the first real integration (see `docs/aria-integration.md` once wired).
+Built and verified end-to-end against a real Postgres + Redis stack (no mocked DB/cache in any of the testing below) — this isn't just scaffolding:
+
+- **Schema, SDK, backend, evaluation pipeline, drift detection**: all built and tested against live services (14 SDK unit tests + direct integration tests through the real HTTP API and LangGraph pipeline).
+- **Dashboard**: shows real registered projects (ARIA, QAIP) with live quality scores, expandable per-prompt version history, and drift status/root-cause hints — pulling from the same live backend, not sample data.
+- **ARIA integration**: `aria_socratic_system` registered, versioned, and deliberately drifted during testing to prove the full loop — a CRITICAL-severity IsolationForest detection triggered a real automatic rollback (v2 → v1), visible in the dashboard today.
+- **QAIP integration**: Stage 5's defect-explanation prompt is version-controlled through AIPQ (`qaip_defect_explanation`, gated against a 10-case golden dataset), with verified fail-open behavior when AIPQ is unreachable or evaluation fails — QAIP's pipeline never breaks either way.
+- **AIMO integration**: `aipq_connector.check_aipq_root_cause` is wired into AIMO's `generate_root_cause` node and into a newly-implemented `detectors/hallucination.py` (real deepeval `FaithfulnessMetric`, Redis-cached). Verified directly against ARIA's live CRITICAL-drift state, correctly producing "Root cause: prompt change v1". Not yet automatic end-to-end: AIMO's incident evidence doesn't carry the AIPQ project/prompt mapping yet, so this fires when called, not on its own.
+
+**Not yet built**: A/B testing (schema exists, no endpoints/UI), Version Comparison / Evaluation Results / Golden Dataset Manager dashboard pages, the CLI, and the reusable GitHub Action.

@@ -5,9 +5,37 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from auth.api_key import generate_api_key, hash_api_key
 from auth.dependencies import AuthContext, get_auth_context
-from models.schemas import ProjectRegisterRequest, ProjectRegisterResponse, ProjectResponse
+from models.schemas import (
+    ProjectListResponse,
+    ProjectRegisterRequest,
+    ProjectRegisterResponse,
+    ProjectResponse,
+    ProjectSummary,
+    PromptListResponse,
+    PromptSummary,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.get("", response_model=ProjectListResponse)
+async def list_projects(request: Request, auth: AuthContext = Depends(get_auth_context)):
+    """Dashboard overview — every registered project with a quick health summary."""
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT p.id, p.name, p.pipeline_type, p.created_at,
+                   COUNT(pr.id) AS prompt_count,
+                   AVG(pv.quality_score) AS avg_quality_score
+            FROM projects p
+            LEFT JOIN prompts pr ON pr.project_id = p.id
+            LEFT JOIN prompt_versions pv ON pv.id = pr.current_version_id
+            GROUP BY p.id, p.name, p.pipeline_type, p.created_at
+            ORDER BY p.id
+            """
+        )
+    return ProjectListResponse(projects=[ProjectSummary(**dict(r)) for r in rows])
 
 
 @router.post("/register", response_model=ProjectRegisterResponse, status_code=status.HTTP_201_CREATED)
@@ -64,3 +92,29 @@ async def get_project(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
 
     return ProjectResponse(**dict(row))
+
+
+@router.get("/{project_id}/prompts", response_model=PromptListResponse)
+async def list_project_prompts(
+    project_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    if auth.via == "api_key" and auth.project_id != project_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "An api_key may only read its own project")
+
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT pr.id, pr.prompt_name, pr.description,
+                   pv.version_number AS current_version_number,
+                   pv.quality_score, pv.status, pv.deployed_at
+            FROM prompts pr
+            LEFT JOIN prompt_versions pv ON pv.id = pr.current_version_id
+            WHERE pr.project_id = $1
+            ORDER BY pr.id
+            """,
+            project_id,
+        )
+    return PromptListResponse(prompts=[PromptSummary(**dict(r)) for r in rows])

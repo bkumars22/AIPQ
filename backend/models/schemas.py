@@ -31,6 +31,33 @@ class ProjectResponse(BaseModel):
     created_at: datetime
 
 
+class ProjectSummary(BaseModel):
+    id: int
+    name: str
+    pipeline_type: str
+    prompt_count: int
+    avg_quality_score: Optional[float]
+    created_at: datetime
+
+
+class ProjectListResponse(BaseModel):
+    projects: list[ProjectSummary]
+
+
+class PromptSummary(BaseModel):
+    id: int
+    prompt_name: str
+    description: Optional[str]
+    current_version_number: Optional[int]
+    quality_score: Optional[float]
+    status: Optional[str]
+    deployed_at: Optional[datetime]
+
+
+class PromptListResponse(BaseModel):
+    prompts: list[PromptSummary]
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────
 
 class PromptRegisterRequest(BaseModel):
