@@ -2,6 +2,8 @@
 
 > Git for prompts — with automatic quality gates, drift detection, and intelligent rollback.
 
+**Live demo:** [bkumars22.github.io/AIPQ](https://bkumars22.github.io/AIPQ) — static preview seeded with real data captured from actual testing (ARIA's live rollback story: v2 dropped to 0.60 quality, IsolationForest flagged it CRITICAL, auto-rolled back to v1 at 0.93). No backend behind it, so nothing there is interactive beyond browsing — see [Local development](#local-development) to run the real thing.
+
 ## The problem
 
 When prompts change in production AI systems, quality silently drops. Nobody knows which change caused it. Nobody can roll back to the last good version automatically.
@@ -34,16 +36,18 @@ GitHub Action (any project's CI) ──▶ Backend /evaluations ──▶ blocks
 
 See `docs/` (or ask for the full architecture writeup) for the complete data model and node-by-node pipeline design.
 
-## Quick start
+## Local development
+
+The live demo above is a static preview only — to run the real stack (live
+backend, evaluation pipeline, drift detection) locally:
 
 ```bash
 cp .env.example .env   # fill in at least one LLM provider key
 docker compose up --build
 ```
 
-- Backend: http://localhost:8001
-- AI Engine: http://localhost:8002
-- Dashboard: http://localhost:3001
+This starts everything on localhost only (not reachable from outside your
+machine): backend on port 8001, AI engine on 8002, dashboard on 3001.
 
 The dashboard has no login page yet — it authenticates with a dashboard JWT
 (admin session, cross-project visibility) read from `frontend/.env`'s

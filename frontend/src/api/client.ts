@@ -1,5 +1,12 @@
+import { DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
+
+// Demo builds (GitHub Pages) have no live backend — a tiny artificial delay
+// keeps the loading state from being an imperceptible flash, same as a real request.
+const demoDelay = <T,>(value: T): Promise<T> => new Promise(resolve => setTimeout(() => resolve(value), 200))
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -54,11 +61,19 @@ export interface DriftStatus {
 }
 
 export const api = {
-  listProjects: () => apiGet<{ projects: ProjectSummary[] }>('/projects').then(r => r.projects),
+  listProjects: () =>
+    DEMO_MODE ? demoDelay(DEMO_PROJECTS)
+      : apiGet<{ projects: ProjectSummary[] }>('/projects').then(r => r.projects),
+
   listPrompts: (projectId: number) =>
-    apiGet<{ prompts: PromptSummary[] }>(`/projects/${projectId}/prompts`).then(r => r.prompts),
+    DEMO_MODE ? demoDelay(DEMO_PROMPTS[projectId] ?? [])
+      : apiGet<{ prompts: PromptSummary[] }>(`/projects/${projectId}/prompts`).then(r => r.prompts),
+
   listVersions: (promptId: number) =>
-    apiGet<{ versions: PromptVersionSummary[] }>(`/prompts/${promptId}/versions`).then(r => r.versions),
+    DEMO_MODE ? demoDelay(DEMO_VERSIONS[promptId] ?? [])
+      : apiGet<{ versions: PromptVersionSummary[] }>(`/prompts/${promptId}/versions`).then(r => r.versions),
+
   driftStatus: (projectId: number, promptName: string) =>
-    apiGet<DriftStatus>(`/drift/status?project_id=${projectId}&prompt_name=${encodeURIComponent(promptName)}`),
+    DEMO_MODE ? demoDelay(DEMO_DRIFT[`${projectId}:${promptName}`])
+      : apiGet<DriftStatus>(`/drift/status?project_id=${projectId}&prompt_name=${encodeURIComponent(promptName)}`),
 }
