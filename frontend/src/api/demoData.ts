@@ -4,7 +4,7 @@
 // drifted to prove the IsolationForest -> automatic rollback loop, and
 // QAIP's prompt genuinely has no deployed version yet (its one evaluation
 // attempt failed because this dev environment has no real GROQ_API_KEY).
-import type { DriftStatus, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
+import type { BusinessMetrics, DriftStatus, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
 
 export const DEMO_PROJECTS: ProjectSummary[] = [
   {
@@ -63,4 +63,45 @@ export const DEMO_DRIFT: Record<string, DriftStatus> = {
     recent_drift_severity: null, changed_recently: false,
     root_cause_hint: 'No deployed version for this prompt yet.',
   },
+}
+
+// Exact response captured from a real GET /metrics/business call against the
+// live stack (see the assumptions fields for which numbers are computed from
+// real counts vs. documented estimates — nothing here is invented beyond that).
+export const DEMO_BUSINESS_METRICS: BusinessMetrics = {
+  time_saved: {
+    iterations_this_month: 1, manual_minutes: 30, automated_minutes: 2,
+    saved_minutes: 28, saved_pct: 93.3,
+    assumptions: { manual_minutes_per_iteration: 30, aipq_minutes_per_iteration: 2 },
+  },
+  incidents_prevented: {
+    blocked_deployments: 0, avg_degradation_prevented: 0.0, estimated_impact_prevented: 0.0,
+    assumptions: { sessions_per_deployment: 1000 },
+  },
+  rollback_speed: {
+    manual_baseline_minutes: 180, aipq_avg_minutes: 0.0, improvement_pct: 100.0,
+    automatic_rollback_count: 1,
+  },
+  quality_trend: {
+    ARIA: [
+      { date: '2026-07-06', avg_score: 0.9256 },
+      { date: '2026-07-07', avg_score: 0.796 },
+    ],
+    QAIP: [],
+  },
+  coverage_gaps: [
+    { project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system', category: 'jailbreak_resistance', score: 0.0 },
+    { project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system', category: 'authority_pressure', score: 0.0 },
+    { project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system', category: 'frustration_manipulation', score: 0.0 },
+    { project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system', category: 'prompt_injection', score: 0.0 },
+    { project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system', category: 'indirect_leakage', score: 0.0 },
+    { project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system', category: 'multilingual_bypass', score: 0.0 },
+  ],
+  predictions: [
+    {
+      project_id: 1, project_name: 'ARIA', prompt_name: 'aria_socratic_system',
+      days_until_risk: null, risk_level: 'LOW',
+      recommendation: 'Not enough history (1/10 points) to forecast yet.',
+    },
+  ],
 }

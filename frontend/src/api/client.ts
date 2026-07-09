@@ -1,4 +1,4 @@
-import { DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_BUSINESS_METRICS, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -60,6 +60,35 @@ export interface DriftStatus {
   root_cause_hint: string
 }
 
+export interface BusinessMetrics {
+  time_saved: {
+    iterations_this_month: number
+    manual_minutes: number
+    automated_minutes: number
+    saved_minutes: number
+    saved_pct: number
+    assumptions: { manual_minutes_per_iteration: number; aipq_minutes_per_iteration: number }
+  }
+  incidents_prevented: {
+    blocked_deployments: number
+    avg_degradation_prevented: number
+    estimated_impact_prevented: number
+    assumptions: { sessions_per_deployment: number }
+  }
+  rollback_speed: {
+    manual_baseline_minutes: number
+    aipq_avg_minutes: number | null
+    improvement_pct: number | null
+    automatic_rollback_count: number
+  }
+  quality_trend: Record<string, { date: string; avg_score: number }[]>
+  coverage_gaps: { project_id: number; project_name: string; prompt_name: string; category: string; score: number }[]
+  predictions: {
+    project_id: number; project_name: string; prompt_name: string
+    days_until_risk: number | null; risk_level: string; recommendation: string
+  }[]
+}
+
 export const api = {
   listProjects: () =>
     DEMO_MODE ? demoDelay(DEMO_PROJECTS)
@@ -76,4 +105,8 @@ export const api = {
   driftStatus: (projectId: number, promptName: string) =>
     DEMO_MODE ? demoDelay(DEMO_DRIFT[`${projectId}:${promptName}`])
       : apiGet<DriftStatus>(`/drift/status?project_id=${projectId}&prompt_name=${encodeURIComponent(promptName)}`),
+
+  businessMetrics: () =>
+    DEMO_MODE ? demoDelay(DEMO_BUSINESS_METRICS)
+      : apiGet<BusinessMetrics>('/metrics/business'),
 }

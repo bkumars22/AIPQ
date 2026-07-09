@@ -7,8 +7,10 @@ from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from analyzers.intelligence import COVERAGE_GAP_THRESHOLD, PromptIntelligenceAnalyzer
 from db import close_all, get_pool
 from evaluators.pipeline import run_evaluation
+from predictors.drift_predictor import PredictiveDriftEngine
 from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -64,6 +66,65 @@ async def _resolve_and_run(version_id: int) -> None:
 async def evaluate(payload: EvaluateRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(_resolve_and_run, payload.version_id)
     return {"accepted": True, "version_id": payload.version_id}
+
+
+@app.get("/analyze/coverage-gaps")
+async def coverage_gaps():
+    """
+    Runs PromptIntelligenceAnalyzer.analyze_coverage on every prompt's
+    currently deployed content, flags categories below COVERAGE_GAP_THRESHOLD.
+    Read-only, computed fresh each call (no caching — this is meant to be
+    called occasionally by the dashboard, not per-request-hot-path).
+    """
+    analyzer = PromptIntelligenceAnalyzer()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT proj.id AS project_id, proj.name AS project_name,
+                   p.prompt_name, pv.content
+            FROM prompts p
+            JOIN projects proj ON proj.id = p.project_id
+            JOIN prompt_versions pv ON pv.id = p.current_version_id
+            """
+        )
+
+    gaps = []
+    for row in rows:
+        coverage = analyzer.analyze_coverage(row["content"])
+        for category, score in coverage.items():
+            if score < COVERAGE_GAP_THRESHOLD:
+                gaps.append({
+                    "project_id": row["project_id"], "project_name": row["project_name"],
+                    "prompt_name": row["prompt_name"], "category": category, "score": score,
+                })
+    return {"gaps": gaps}
+
+
+@app.get("/analyze/predictions")
+async def predictions():
+    """Runs PredictiveDriftEngine.predict_quality_trend for every currently deployed prompt version."""
+    engine = PredictiveDriftEngine()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT proj.id AS project_id, proj.name AS project_name,
+                   p.prompt_name, pv.id AS version_id
+            FROM prompts p
+            JOIN projects proj ON proj.id = p.project_id
+            JOIN prompt_versions pv ON pv.id = p.current_version_id
+            """
+        )
+
+    results = []
+    for row in rows:
+        trend = await engine.predict_quality_trend(row["version_id"])
+        results.append({
+            "project_id": row["project_id"], "project_name": row["project_name"],
+            "prompt_name": row["prompt_name"], **trend,
+        })
+    return {"predictions": results}
 
 
 @app.get("/health")
