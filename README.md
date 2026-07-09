@@ -2,7 +2,7 @@
 
 > Git for prompts — with automatic quality gates, drift detection, and intelligent rollback.
 
-**Live demo:** [bkumars22.github.io/AIPQ](https://bkumars22.github.io/AIPQ) — static preview seeded with real data captured from actual testing (ARIA's live rollback story: v2 dropped to 0.60 quality, IsolationForest flagged it CRITICAL, auto-rolled back to v1 at 0.93). No backend behind it, so nothing there is interactive beyond browsing — see [Local development](#local-development) to run the real thing.
+**Live demo:** [bkumars22.github.io/AIPQ](https://bkumars22.github.io/AIPQ) — preview seeded with real data captured from actual testing (ARIA's live rollback story: v2 dropped to 0.60 quality, IsolationForest flagged it CRITICAL, auto-rolled back to v1 at 0.93). It's the same dashboard code you'd run yourself, pointed at fixed data instead of your own backend — clone the repo and run `docker compose up` (see [Local development](#local-development)) to connect it to a real one.
 
 ## The problem
 

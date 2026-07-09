@@ -10,7 +10,7 @@ function App() {
     <>
       {DEMO_MODE && (
         <div className="bg-amber-500 text-slate-900 text-sm text-center py-2 px-4 font-medium">
-          Demo Mode — Static Preview (no live backend) &nbsp;|&nbsp; Real platform:{' '}
+          Preview Mode — this data is fixed. Connect your own backend:{' '}
           <a href="https://github.com/bkumars22/AIPQ" className="underline">
             github.com/bkumars22/AIPQ
           </a>
