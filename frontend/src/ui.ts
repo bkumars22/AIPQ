@@ -22,6 +22,15 @@ export function statusColor(status: string | null | undefined): string {
   }
 }
 
+export function coverageStatusColor(status: string | null | undefined): string {
+  switch (status) {
+    case 'COVERED': return 'text-emerald-400'
+    case 'PARTIAL': return 'text-amber-400'
+    case 'GAP': return 'text-red-400'
+    default: return 'text-slate-400'
+  }
+}
+
 export function severityColor(severity: string | null | undefined): string {
   switch (severity) {
     case 'CRITICAL': return 'text-red-400'

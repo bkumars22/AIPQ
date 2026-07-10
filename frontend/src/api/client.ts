@@ -82,7 +82,10 @@ export interface BusinessMetrics {
     automatic_rollback_count: number
   }
   quality_trend: Record<string, { date: string; avg_score: number }[]>
-  coverage_gaps: { project_id: number; project_name: string; prompt_name: string; category: string; score: number }[]
+  coverage_gaps: {
+    project_id: number; project_name: string; prompt_name: string; category: string
+    score: number; status: string; recommendation: string
+  }[]
   predictions: {
     project_id: number; project_name: string; prompt_name: string
     days_until_risk: number | null; risk_level: string; recommendation: string

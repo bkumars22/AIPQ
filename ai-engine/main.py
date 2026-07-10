@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
-from analyzers.intelligence import COVERAGE_GAP_THRESHOLD, PromptIntelligenceAnalyzer
+from analyzers.coverage import COVERED_THRESHOLD, PromptCoverageAnalyzer
 from db import close_all, get_pool
 from evaluators.pipeline import run_evaluation
 from predictors.drift_predictor import PredictiveDriftEngine
@@ -71,12 +71,13 @@ async def evaluate(payload: EvaluateRequest, background_tasks: BackgroundTasks):
 @app.get("/analyze/coverage-gaps")
 async def coverage_gaps():
     """
-    Runs PromptIntelligenceAnalyzer.analyze_coverage on every prompt's
-    currently deployed content, flags categories below COVERAGE_GAP_THRESHOLD.
-    Read-only, computed fresh each call (no caching — this is meant to be
-    called occasionally by the dashboard, not per-request-hot-path).
+    Runs PromptCoverageAnalyzer.analyze on every prompt's currently deployed
+    content, flags categories below COVERED_THRESHOLD with their status
+    (PARTIAL/GAP) and a specific recommendation string. Read-only, computed
+    fresh each call (no caching — this is meant to be called occasionally by
+    the dashboard, not per-request-hot-path).
     """
-    analyzer = PromptIntelligenceAnalyzer()
+    analyzer = PromptCoverageAnalyzer()
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -91,12 +92,14 @@ async def coverage_gaps():
 
     gaps = []
     for row in rows:
-        coverage = analyzer.analyze_coverage(row["content"])
-        for category, score in coverage.items():
-            if score < COVERAGE_GAP_THRESHOLD:
+        analysis = analyzer.analyze(row["content"])
+        for category, data in analysis["categories"].items():
+            if data["score"] < COVERED_THRESHOLD:
                 gaps.append({
                     "project_id": row["project_id"], "project_name": row["project_name"],
-                    "prompt_name": row["prompt_name"], "category": category, "score": score,
+                    "prompt_name": row["prompt_name"], "category": category,
+                    "score": data["score"], "status": data["status"],
+                    "recommendation": data["recommendation"],
                 })
     return {"gaps": gaps}
 

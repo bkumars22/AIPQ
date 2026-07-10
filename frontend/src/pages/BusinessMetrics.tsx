@@ -4,7 +4,7 @@ import {
   CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { api } from '../api/client'
-import { scoreColor, severityColor } from '../ui'
+import { coverageStatusColor, scoreColor, severityColor } from '../ui'
 
 const PROJECT_COLORS: Record<string, string> = {
   ARIA: '#34d399', QAIP: '#38bdf8', SCIP: '#fbbf24', ZENTRAVIX: '#f472b6',
@@ -156,15 +156,22 @@ export default function BusinessMetrics() {
                 <tr className="text-slate-400 text-left border-b border-slate-700">
                   <th className="pb-1 pr-4">Prompt</th>
                   <th className="pb-1 pr-4">Category</th>
-                  <th className="pb-1">Coverage</th>
+                  <th className="pb-1 pr-4">Coverage</th>
+                  <th className="pb-1">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {data.coverage_gaps.map((g, i) => (
-                  <tr key={i} className="border-b border-slate-800">
+                  <tr key={i} className="border-b border-slate-800 align-top">
                     <td className="py-1 pr-4 font-mono text-xs">{g.project_name}/{g.prompt_name}</td>
-                    <td className="py-1 pr-4">{g.category.replace(/_/g, ' ')}</td>
-                    <td className={`py-1 font-semibold ${scoreColor(g.score)}`}>{Math.round(g.score * 100)}%</td>
+                    <td className="py-1 pr-4">
+                      {g.category.replace(/_/g, ' ')}
+                      {g.recommendation && (
+                        <div className="text-xs text-slate-500 mt-0.5 max-w-md">{g.recommendation}</div>
+                      )}
+                    </td>
+                    <td className={`py-1 pr-4 font-semibold ${scoreColor(g.score)}`}>{Math.round(g.score * 100)}%</td>
+                    <td className={`py-1 font-medium ${coverageStatusColor(g.status)}`}>{g.status}</td>
                   </tr>
                 ))}
               </tbody>
