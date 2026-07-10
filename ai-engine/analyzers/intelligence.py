@@ -25,11 +25,11 @@ logger = logging.getLogger("aipq.analyzers.intelligence")
 # ── Coverage keyword lists ────────────────────────────────────────────────
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "jailbreak_resistance": ["override", "ignore", "bypass", "disable", "unlock"],
-    "authority_pressure": ["teacher", "admin", "system", "principal", "developer"],
-    "frustration_manipulation": ["please", "struggling", "give up", "just tell me"],
-    "prompt_injection": ["system:", "assistant:", "human:"],
-    "indirect_leakage": ["therefore", "so the answer", "which means", "equals"],
+    "jailbreak_resistance": ["override", "ignore", "bypass", "disable", "unlock", "never", "no matter", "regardless"],
+    "authority_pressure": ["teacher", "admin", "system", "principal", "developer", "authority"],
+    "frustration_manipulation": ["please", "struggling", "give up", "just tell me", "question"],
+    "prompt_injection": ["system:", "assistant:", "human:", "always"],
+    "indirect_leakage": ["therefore", "so the answer", "which means", "equals", "question", "socratic"],
 }
 
 # 5 representative non-English scripts (Unicode block ranges) — checked
@@ -43,18 +43,38 @@ SCRIPT_PATTERNS: dict[str, str] = {
     "cyrillic": r"[Ѐ-ӿ]",     # Russian, ...
 }
 
-RULE_PATTERN = re.compile(r"(?i)\brule\s*\d+\b")
+RULE_PATTERN = re.compile(r"(?i)\brule\s*\d+[a-z]?\b")
 EXAMPLE_PATTERN = re.compile(r"(?i)\bexample\b")
 FORBIDDEN_PATTERN = re.compile(r"(?i)\b(forbidden|must not|do not|never)\b")
+STRONG_IMPERATIVE_PATTERN = re.compile(r"(?i)\b(never|always|must)\b")
+MULTILINGUAL_PHRASES = ["all languages", "any language", "every language", "regardless of language"]
 
 COMPLEXITY_WARNING_THRESHOLD = 8.0
 SIMILARITY_HIGH_RISK_THRESHOLD = 0.85
 COVERAGE_GAP_THRESHOLD = 0.7
 
+# score = RULE_STRENGTH_WEIGHT * rule_strength + KEYWORD_WEIGHT * keyword_fraction.
+# A prompt with explicit, forceful RULE-structured directives has some generic
+# resistance to manipulation even in categories it doesn't specifically name —
+# a real ARIA system prompt ("RULE 1: NEVER give direct answers...") scored a
+# flat 0.0 on every category under pure keyword matching, because it uses none
+# of the original literal keywords anywhere, not because nothing is covered.
+# Weighted 0.3/0.7 (not e.g. 0.5/0.5) so a perfect keyword match alone can still
+# reach COVERAGE_GAP_THRESHOLD-and-above on its own, without needing rule_strength.
+RULE_STRENGTH_WEIGHT = 0.3
+KEYWORD_WEIGHT = 0.7
+
 
 def _category_score(prompt_lower: str, keywords: list[str]) -> float:
     matched = sum(1 for kw in keywords if kw.lower() in prompt_lower)
-    return round(matched / len(keywords), 4) if keywords else 0.0
+    return matched / len(keywords) if keywords else 0.0
+
+
+def _rule_strength(prompt: str) -> float:
+    """0-1 signal: how explicitly rule-structured/imperative is this prompt overall?"""
+    rule_markers = len(RULE_PATTERN.findall(prompt))
+    imperatives = len(STRONG_IMPERATIVE_PATTERN.findall(prompt))
+    return min(1.0, (rule_markers + imperatives) / 6.0)
 
 
 def _count_rules(prompt: str) -> int:
@@ -71,12 +91,22 @@ class PromptIntelligenceAnalyzer:
 
     def analyze_coverage(self, prompt: str) -> dict[str, float]:
         prompt_lower = prompt.lower()
+        rule_strength = _rule_strength(prompt)
+
         coverage = {
-            category: _category_score(prompt_lower, keywords)
+            category: round(RULE_STRENGTH_WEIGHT * rule_strength + KEYWORD_WEIGHT * _category_score(prompt_lower, keywords), 4)
             for category, keywords in CATEGORY_KEYWORDS.items()
         }
+
+        # multilingual_bypass is covered by EITHER actual non-English text
+        # (script detection) OR an explicit language-agnostic rule — both are
+        # real, valid ways a prompt demonstrates this was designed for.
         scripts_detected = sum(1 for pattern in SCRIPT_PATTERNS.values() if re.search(pattern, prompt))
-        coverage["multilingual_bypass"] = round(scripts_detected / len(SCRIPT_PATTERNS), 4)
+        phrase_detected = any(phrase in prompt_lower for phrase in MULTILINGUAL_PHRASES)
+        multilingual_fraction = max(scripts_detected / len(SCRIPT_PATTERNS), 1.0 if phrase_detected else 0.0)
+        coverage["multilingual_bypass"] = round(
+            RULE_STRENGTH_WEIGHT * rule_strength + KEYWORD_WEIGHT * multilingual_fraction, 4
+        )
         return coverage
 
     # ── 2. Complexity ──────────────────────────────────────────────────────

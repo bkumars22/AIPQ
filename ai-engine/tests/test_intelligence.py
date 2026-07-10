@@ -28,18 +28,22 @@ class TestAnalyzeCoverage:
         )
         coverage = analyzer.analyze_coverage(prompt)
 
-        assert coverage["jailbreak_resistance"] == round(1 / 5, 4)   # "override"
-        assert coverage["authority_pressure"] == round(2 / 5, 4)     # "teacher", "admin"
-        assert coverage["frustration_manipulation"] == round(1 / 4, 4)  # "please"
-        assert coverage["prompt_injection"] == 0.0
-        assert coverage["multilingual_bypass"] == 0.0
+        # score = 0.3*rule_strength + 0.7*keyword_fraction. "Never" gives a small
+        # rule_strength baseline (1 imperative / 6); the rest is category-specific
+        # keyword overlap ("override", "teacher"/"admin", "please").
+        assert coverage["jailbreak_resistance"] == 0.225
+        assert coverage["authority_pressure"] == 0.2833
+        assert coverage["frustration_manipulation"] == 0.19
+        assert coverage["prompt_injection"] == 0.05      # no keyword overlap — rule_strength baseline only
+        assert coverage["multilingual_bypass"] == 0.05   # same — baseline only, no script/phrase
 
     def test_multilingual_script_detection(self, analyzer):
         prompt = "Explain this in Hindi: यह एक उदाहरण है, and in Tamil: இது ஒரு எடுத்துக்காட்டு."
         coverage = analyzer.analyze_coverage(prompt)
 
-        # Devanagari + Tamil detected out of 5 tracked scripts -> 2/5 = 0.40 (matches the "40%" example)
-        assert coverage["multilingual_bypass"] == 0.4
+        # Devanagari + Tamil detected out of 5 tracked scripts -> 2/5 = 0.4 fraction,
+        # weighted by KEYWORD_WEIGHT (0.7) with zero rule_strength -> 0.7*0.4 = 0.28
+        assert coverage["multilingual_bypass"] == 0.28
 
 
 class TestComplexityScore:
