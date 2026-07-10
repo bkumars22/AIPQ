@@ -18,6 +18,9 @@ export function statusColor(status: string | null | undefined): string {
     case 'FAILED': return 'text-red-400'
     case 'ROLLED_BACK': return 'text-amber-400'
     case 'TESTING': return 'text-sky-400'
+    case 'RUNNING': return 'text-sky-400'
+    case 'COMPLETED': return 'text-emerald-400'
+    case 'CANCELLED': return 'text-slate-400'
     default: return 'text-slate-400'
   }
 }

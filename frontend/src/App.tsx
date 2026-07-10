@@ -2,6 +2,7 @@ import { Routes, Route, Link } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import ProjectPrompts from './pages/ProjectPrompts'
 import BusinessMetrics from './pages/BusinessMetrics'
+import ABTestDetail from './pages/ABTestDetail'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
 
@@ -24,6 +25,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects/:projectId" element={<ProjectPrompts />} />
         <Route path="/metrics" element={<BusinessMetrics />} />
+        <Route path="/ab-tests/:id" element={<ABTestDetail />} />
       </Routes>
     </>
   )

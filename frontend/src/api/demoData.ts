@@ -4,7 +4,7 @@
 // drifted to prove the IsolationForest -> automatic rollback loop, and
 // QAIP's prompt genuinely has no deployed version yet (its one evaluation
 // attempt failed because this dev environment has no real GROQ_API_KEY).
-import type { BusinessMetrics, DriftStatus, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
+import type { ABTestResults, BusinessMetrics, DriftStatus, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
 
 export const DEMO_PROJECTS: ProjectSummary[] = [
   {
@@ -128,4 +128,17 @@ export const DEMO_BUSINESS_METRICS: BusinessMetrics = {
       recommendation: 'Not enough history (1/10 points) to forecast yet.',
     },
   ],
+}
+
+// Mirrors the real (v1 vs v2) A/B test run against the live stack while
+// verifying the ab-tests endpoints: v1 ("You are ARIA, a Socratic tutor.")
+// vs v2 ("sped up responses", the version that was rolled back) — same
+// story as DEMO_VERSIONS above, just replayed as a live A/B test.
+export const DEMO_AB_TEST_RESULTS: ABTestResults = {
+  ab_test_id: 1, prompt_id: 1, status: 'RUNNING',
+  traffic_split: 0.5, min_samples: 10, current_samples: 8,
+  version_a: { version_id: 1, version_number: 1, n: 4, mean_score: 0.945, stdev: 0.0129 },
+  version_b: { version_id: 2, version_number: 2, n: 4, mean_score: 0.5875, stdev: 0.0299 },
+  p_value: 0.0001, significant: true, winner_version_id: 1,
+  recommendation: 'Statistically significant difference found (p=0.0001) — version 1 is winning. Promote it.',
 }

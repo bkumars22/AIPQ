@@ -1,4 +1,4 @@
-import { DEMO_BUSINESS_METRICS, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -11,6 +11,18 @@ const demoDelay = <T,>(value: T): Promise<T> => new Promise(resolve => setTimeou
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     headers: { Authorization: `Bearer ${DEV_JWT}` },
+  })
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText} — ${await res.text()}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${DEV_JWT}`, 'Content-Type': 'application/json' },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText} — ${await res.text()}`)
@@ -92,6 +104,29 @@ export interface BusinessMetrics {
   }[]
 }
 
+export interface ABTestArmStats {
+  version_id: number
+  version_number: number
+  n: number
+  mean_score: number | null
+  stdev: number | null
+}
+
+export interface ABTestResults {
+  ab_test_id: number
+  prompt_id: number
+  status: string  // RUNNING | COMPLETED | CANCELLED
+  traffic_split: number
+  min_samples: number
+  current_samples: number
+  version_a: ABTestArmStats
+  version_b: ABTestArmStats
+  p_value: number | null
+  significant: boolean
+  winner_version_id: number | null
+  recommendation: string
+}
+
 export const api = {
   listProjects: () =>
     DEMO_MODE ? demoDelay(DEMO_PROJECTS)
@@ -112,4 +147,18 @@ export const api = {
   businessMetrics: () =>
     DEMO_MODE ? demoDelay(DEMO_BUSINESS_METRICS)
       : apiGet<BusinessMetrics>('/metrics/business'),
+
+  createABTest: (promptId: number, versionAId: number, versionBId: number, minSamples = 100) =>
+    DEMO_MODE ? demoDelay({ ab_test_id: DEMO_AB_TEST_RESULTS.ab_test_id, status: 'RUNNING' })
+      : apiPost<{ ab_test_id: number; status: string }>('/ab-tests', {
+          prompt_id: promptId, version_a_id: versionAId, version_b_id: versionBId, min_samples: minSamples,
+        }),
+
+  abTestResults: (id: number) =>
+    DEMO_MODE ? demoDelay(DEMO_AB_TEST_RESULTS)
+      : apiGet<ABTestResults>(`/ab-tests/${id}/results`),
+
+  promoteABTest: (id: number, version: 'A' | 'B') =>
+    DEMO_MODE ? demoDelay({ promoted_version_id: DEMO_AB_TEST_RESULTS.version_a.version_id, status: 'COMPLETED' })
+      : apiPost<{ promoted_version_id: number; status: string }>(`/ab-tests/${id}/promote?version=${version}`),
 }
