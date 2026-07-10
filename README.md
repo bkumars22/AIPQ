@@ -83,6 +83,28 @@ async def get_system_prompt() -> str:
 
 Every call checks whether the prompt text changed since the last deployed version. If it did, AIPQ evaluates it against the golden dataset before letting your app use it — a failing score raises `PromptQualityError` and blocks your app from starting with a bad prompt.
 
+## GitHub Action usage
+
+Add a prompt quality gate to any project's CI — no SDK install needed, the action talks to AIPQ's HTTP API directly:
+
+```yaml
+- name: Check prompt quality
+  uses: bkumars22/AIPQ/.github/actions/aipq-evaluate@v1
+  with:
+    api-key: ${{ secrets.AIPQ_API_KEY }}
+    api-url: ${{ secrets.AIPQ_API_URL }}       # your AIPQ backend's URL
+    project-id: ${{ secrets.AIPQ_PROJECT_ID }}
+    prompt-name: aria_socratic_system
+    prompt-file: src/prompts/socratic_system.txt
+    dataset: aria_adversarial_golden
+    threshold: '0.90'
+    github-token: ${{ secrets.GITHUB_TOKEN }}   # optional — posts pass/fail as a PR comment
+```
+
+Skips evaluation (exit 0) if `prompt-file`'s content matches what's currently deployed. Otherwise creates a new version, waits for the evaluation to resolve, and fails the job (exit 1) if the score doesn't clear `threshold`.
+
+There's also a plain CLI for local/manual use (`cli/aipq_cli.py evaluate --prompt-name ... --prompt-file ... --dataset ... --threshold ...`), backed by the same SDK client the `@aipq_prompt` decorator uses.
+
 ## Tech stack
 
 | Layer | Technology |

@@ -1,0 +1,73 @@
+name: 'AIPQ Prompt Quality Gate'
+description: 'Evaluates a prompt against its AIPQ golden dataset and blocks CI if quality drops below threshold.'
+author: 'bkumars22'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  api-key:
+    description: 'AIPQ project API key (sent as Authorization: Bearer <api-key>)'
+    required: true
+  api-url:
+    description: 'Base URL of the AIPQ backend this project is registered against'
+    required: true
+  project-id:
+    description: 'AIPQ project ID this prompt belongs to'
+    required: true
+  prompt-name:
+    description: 'Registered AIPQ prompt name'
+    required: true
+  prompt-file:
+    description: 'Path (relative to repo root) to the file containing the current prompt text'
+    required: true
+  dataset:
+    description: 'Golden dataset name to register/evaluate against'
+    required: true
+  threshold:
+    description: 'Minimum passing quality score (0.0-1.0)'
+    required: false
+    default: '0.85'
+  poll-timeout-seconds:
+    description: 'How long to wait for evaluation to resolve before failing the step'
+    required: false
+    default: '60'
+  github-token:
+    description: 'Token used to post a pull-request comment with the result; omit to skip commenting'
+    required: false
+    default: ''
+
+outputs:
+  quality-score:
+    description: 'The resulting quality score (or "n/a" if evaluation was skipped/errored)'
+    value: ${{ steps.evaluate.outputs.quality-score }}
+  status:
+    description: 'DEPLOYED, FAILED, or UNCHANGED (no new version was created)'
+    value: ${{ steps.evaluate.outputs.status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install --quiet requests
+
+    - name: Run AIPQ evaluation
+      id: evaluate
+      shell: bash
+      env:
+        AIPQ_API_KEY: ${{ inputs.api-key }}
+        AIPQ_API_URL: ${{ inputs.api-url }}
+        AIPQ_PROJECT_ID: ${{ inputs.project-id }}
+        AIPQ_PROMPT_NAME: ${{ inputs.prompt-name }}
+        AIPQ_PROMPT_FILE: ${{ inputs.prompt-file }}
+        AIPQ_DATASET: ${{ inputs.dataset }}
+        AIPQ_THRESHOLD: ${{ inputs.threshold }}
+        AIPQ_POLL_TIMEOUT: ${{ inputs.poll-timeout-seconds }}
+        AIPQ_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: python3 "${{ github.action_path }}/evaluate.py"
