@@ -110,7 +110,7 @@ Built and verified end-to-end against a real Postgres + Redis stack (no mocked D
 
 ---
 
-## 🔗 Backend Integration Architecture
+##  Backend Integration Architecture
 
 AIPQ connects 8 systems through a central FastAPI backend. Here is exactly how each integration works end to end.
 
@@ -312,7 +312,7 @@ Engineer clicks Approve:
 
 ---
 
-## 📊 Real Production Event — What Actually Happened
+## Real Production Event — What Actually Happened
 
 ```
 Date:     July 7, 2026
@@ -342,7 +342,7 @@ This event is visible live at [bkumars22.github.io/AIPQ](https://bkumars22.githu
 
 ---
 
-## 📈 Business Metrics (Live from Dashboard)
+## Business Metrics (Live from Dashboard)
 
 | Metric | Value |
 |--------|-------|
@@ -355,7 +355,7 @@ This event is visible live at [bkumars22.github.io/AIPQ](https://bkumars22.githu
 
 ---
 
-## 🔬 Depth Layers Built
+##  Depth Layers Built
 
 Beyond basic version control, AIPQ implements 4 analytical layers:
 
@@ -417,7 +417,7 @@ contributors = await predictor.identify_drift_contributors(
 
 ---
 
-## 🔒 EU AI Act Compliance
+##  EU AI Act Compliance
 
 AIPQ generates a complete audit trail for every prompt decision:
 
@@ -440,7 +440,7 @@ This evidence package satisfies:
 
 ---
 
-## 🌐 Connected Projects
+##  Connected Projects
 
 AIPQ is the governance layer for a complete AI quality platform:
 
