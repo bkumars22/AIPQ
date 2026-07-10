@@ -1,0 +1,46 @@
+name: Publish aipq-sdk to PyPI
+
+# Runs on a GitHub Release publish, or manually. Uses PyPI Trusted
+# Publishing (OIDC) — no PyPI API token stored as a repo secret. This repo
+# must first be registered as a trusted publisher on PyPI: pypi.org ->
+# account -> Publishing -> Add a new pending publisher, with:
+#   PyPI project name: aipq-sdk
+#   Owner: bkumars22   Repository: AIPQ
+#   Workflow filename: publish-pypi.yml
+#   Environment name: pypi
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: sdk/dist/
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # required for OIDC trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
