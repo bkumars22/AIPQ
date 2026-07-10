@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from analyzers.coverage import COVERED_THRESHOLD, PromptCoverageAnalyzer
 from db import close_all, get_pool
 from evaluators.pipeline import run_evaluation
+from predictors.causal_impact import CausalImpactAnalyzer
 from predictors.drift_predictor import PredictiveDriftEngine
 from scheduler import start_scheduler
 from validators.statistical import StatisticalValidator, confidence_interval_95
@@ -167,6 +168,33 @@ async def confidence(prompt_id: int):
         previous_scores, previous_version_number = scores, row["version_number"]
 
     return {"prompt_id": prompt_id, "versions": results}
+
+
+@app.get("/analyze/causal-impact")
+async def causal_impact(prompt_id: int):
+    """
+    Interrupted-time-series causal impact of the currently-deployed version
+    vs. the one it replaced — see predictors/causal_impact.py's module
+    docstring for the method and its limitations. Returns a "no effect"
+    result (not an error) when there's no previous version or too little
+    history on either side to estimate anything.
+    """
+    analyzer = CausalImpactAnalyzer()
+    result = await analyzer.estimate_impact_for_version(prompt_id)
+    return {
+        "prompt_id": prompt_id,
+        "pre_period_mean": result.pre_period_mean,
+        "post_period_mean": result.post_period_mean,
+        "counterfactual_mean": result.counterfactual_mean,
+        "estimated_effect": result.estimated_effect,
+        "relative_effect_pct": result.relative_effect_pct,
+        "p_value": result.p_value,
+        "is_significant": result.is_significant,
+        "sample_size_pre": result.sample_size_pre,
+        "sample_size_post": result.sample_size_post,
+        "interpretation": result.interpretation,
+        "caveat": result.caveat,
+    }
 
 
 @app.get("/health")

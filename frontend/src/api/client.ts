@@ -1,4 +1,4 @@
-import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_IMPACT, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -131,6 +131,21 @@ export interface PromptConfidence {
   versions: VersionConfidence[]
 }
 
+export interface CausalImpact {
+  prompt_id: number
+  pre_period_mean: number | null
+  post_period_mean: number | null
+  counterfactual_mean: number | null
+  estimated_effect: number | null
+  relative_effect_pct: number | null
+  p_value: number | null
+  is_significant: boolean
+  sample_size_pre: number
+  sample_size_post: number
+  interpretation: string
+  caveat: string
+}
+
 export interface ABTestArmStats {
   version_id: number
   version_number: number
@@ -174,6 +189,15 @@ export const api = {
   promptConfidence: (promptId: number) =>
     DEMO_MODE ? demoDelay(DEMO_CONFIDENCE[promptId] ?? { prompt_id: promptId, versions: [] })
       : apiGet<PromptConfidence>(`/prompts/${promptId}/confidence`),
+
+  causalImpact: (promptId: number) =>
+    DEMO_MODE ? demoDelay(DEMO_CAUSAL_IMPACT[promptId] ?? {
+      prompt_id: promptId, pre_period_mean: null, post_period_mean: null, counterfactual_mean: null,
+      estimated_effect: null, relative_effect_pct: null, p_value: null, is_significant: false,
+      sample_size_pre: 0, sample_size_post: 0, interpretation: 'No previous version to compare against.',
+      caveat: '',
+    })
+      : apiGet<CausalImpact>(`/prompts/${promptId}/causal-impact`),
 
   businessMetrics: () =>
     DEMO_MODE ? demoDelay(DEMO_BUSINESS_METRICS)

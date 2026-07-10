@@ -4,7 +4,7 @@
 // drifted to prove the IsolationForest -> automatic rollback loop, and
 // QAIP's prompt genuinely has no deployed version yet (its one evaluation
 // attempt failed because this dev environment has no real GROQ_API_KEY).
-import type { ABTestResults, BusinessMetrics, DriftStatus, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
+import type { ABTestResults, BusinessMetrics, CausalImpact, DriftStatus, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
 
 export const DEMO_PROJECTS: ProjectSummary[] = [
   {
@@ -168,4 +168,26 @@ export const DEMO_AB_TEST_RESULTS: ABTestResults = {
   version_b: { version_id: 2, version_number: 2, n: 4, mean_score: 0.5875, stdev: 0.0299 },
   p_value: 0.0001, significant: true, winner_version_id: 1,
   recommendation: 'Statistically significant difference found (p=0.0001) — version 1 is winning. Promote it.',
+}
+
+// Snapshot of what the causal-impact analysis showed at the moment v2 was
+// flagged (before the automatic rollback put v1 back as current) — not the
+// present live state, where v1 is deployed with no previous version to
+// compare against (real /prompts/1/causal-impact today correctly reports
+// "no previous version"). Numbers match the same real v1=0.93/v2=0.60
+// story as every other ARIA demo fixture above.
+export const DEMO_CAUSAL_IMPACT: Record<number, CausalImpact> = {
+  1: {
+    prompt_id: 1, pre_period_mean: 0.93, post_period_mean: 0.60, counterfactual_mean: 0.92,
+    estimated_effect: -0.32, relative_effect_pct: -34.78, p_value: 0.001, is_significant: true,
+    sample_size_pre: 12, sample_size_post: 12,
+    interpretation: 'Significant regression: quality is -0.3200 below what the pre-deployment trend predicted (p=0.001) — this deployment likely caused it.',
+    caveat: 'Interrupted time series design: measures whether quality changed at the deployment cutpoint relative to the pre-existing trend, not true causal isolation — a simultaneous confound (e.g. an LLM provider model update at the same time) cannot be distinguished from the prompt change itself.',
+  },
+  2: {
+    prompt_id: 2, pre_period_mean: null, post_period_mean: null, counterfactual_mean: null,
+    estimated_effect: null, relative_effect_pct: null, p_value: null, is_significant: false,
+    sample_size_pre: 0, sample_size_post: 0, interpretation: 'No previous version to compare against.',
+    caveat: '',
+  },
 }

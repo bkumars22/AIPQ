@@ -199,6 +199,37 @@ async def get_prompt_confidence(
         return {"prompt_id": prompt_id, "versions": []}
 
 
+@router.get("/{prompt_id}/causal-impact")
+async def get_prompt_causal_impact(
+    prompt_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """
+    Proxies ai-engine's interrupted-time-series causal impact estimate for
+    this prompt's current version vs. the one it replaced (see
+    predictors/causal_impact.py). Returns a "no effect" shape rather than
+    an error if ai-engine is unreachable, matching the same
+    "never block the dashboard on ai-engine" approach as metrics.py.
+    """
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+    url = ai_engine_url()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{url}/analyze/causal-impact", params={"prompt_id": prompt_id})
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPError as exc:
+        logger.warning("ai-engine unreachable for /analyze/causal-impact (prompt %d): %s", prompt_id, exc)
+        return {"prompt_id": prompt_id, "estimated_effect": None, "interpretation": "ai-engine unreachable"}
+
+
 @router.get("/{prompt_id}/current", response_model=CurrentVersionResponse)
 async def get_current_version(
     prompt_id: int,

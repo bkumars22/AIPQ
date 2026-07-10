@@ -108,6 +108,10 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
     queryFn: () => api.promptConfidence(promptId),
   })
   const confidenceByVersion = new Map((confidence?.versions ?? []).map(v => [v.version_id, v]))
+  const { data: causalImpact } = useQuery({
+    queryKey: ['causal-impact', promptId],
+    queryFn: () => api.causalImpact(promptId),
+  })
 
   const startTest = useMutation({
     mutationFn: () => api.createABTest(promptId, selected[0], selected[1]),
@@ -132,6 +136,16 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
             {drift.recent_drift_severity ?? 'NONE'}
           </span>
           <span className="text-slate-400"> — {drift.root_cause_hint}</span>
+        </div>
+      )}
+
+      {causalImpact && causalImpact.estimated_effect !== null && (
+        <div className="text-sm" title={causalImpact.caveat}>
+          <span className={causalImpact.is_significant ? (causalImpact.estimated_effect < 0 ? 'text-red-400 font-semibold' : 'text-emerald-400 font-semibold') : 'text-slate-400'}>
+            Causal impact of current version: {causalImpact.estimated_effect > 0 ? '+' : ''}{causalImpact.estimated_effect.toFixed(4)}
+            {causalImpact.relative_effect_pct !== null && ` (${causalImpact.relative_effect_pct > 0 ? '+' : ''}${causalImpact.relative_effect_pct}%)`}
+          </span>
+          <span className="text-slate-500"> — {causalImpact.interpretation}</span>
         </div>
       )}
 
