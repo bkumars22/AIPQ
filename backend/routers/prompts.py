@@ -168,6 +168,37 @@ async def list_prompt_versions(
     return PromptVersionListResponse(versions=[PromptVersionSummary(**dict(r)) for r in rows])
 
 
+@router.get("/{prompt_id}/confidence")
+async def get_prompt_confidence(
+    prompt_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """
+    Proxies ai-engine's StatisticalValidator analysis for this prompt's
+    version history — per-version 95% CI and significance-vs-previous-version
+    (see StatisticalValidator's docstring). Returns an empty version list
+    rather than an error if ai-engine is unreachable, matching the same
+    "never block the dashboard on ai-engine" approach as metrics.py.
+    """
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+    ai_engine_url = os.getenv("AI_ENGINE_URL", "http://localhost:8002")
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{ai_engine_url}/analyze/confidence", params={"prompt_id": prompt_id})
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPError as exc:
+        logger.warning("ai-engine unreachable for /analyze/confidence (prompt %d): %s", prompt_id, exc)
+        return {"prompt_id": prompt_id, "versions": []}
+
+
 @router.get("/{prompt_id}/current", response_model=CurrentVersionResponse)
 async def get_current_version(
     prompt_id: int,

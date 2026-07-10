@@ -56,7 +56,7 @@ def _cohens_d(a: list[float], b: list[float]) -> float:
     return (mean_a - mean_b) / pooled_std
 
 
-def _confidence_interval_95(scores: list[float]) -> tuple[float, float]:
+def confidence_interval_95(scores: list[float]) -> tuple[float, float]:
     n = len(scores)
     mean = sum(scores) / n
     if n < 2:
@@ -104,7 +104,7 @@ class StatisticalValidator:
         if n_current < MIN_SAMPLES or n_previous < MIN_SAMPLES:
             return ImprovementResult(
                 p_value=None, effect_size=None, effect_size_label=None,
-                confidence_interval_95=_confidence_interval_95(current_scores) if current_scores else None,
+                confidence_interval_95=confidence_interval_95(current_scores) if current_scores else None,
                 sample_size=n_current, previous_sample_size=n_previous,
                 is_significant=False,
                 recommendation=(
@@ -132,7 +132,7 @@ class StatisticalValidator:
             p_value=round(float(p_value), 6),
             effect_size=round(float(effect_size), 4),
             effect_size_label=effect_label,
-            confidence_interval_95=_confidence_interval_95(current_scores),
+            confidence_interval_95=confidence_interval_95(current_scores),
             sample_size=n_current,
             previous_sample_size=n_previous,
             is_significant=bool(is_significant),

@@ -12,6 +12,7 @@ from db import close_all, get_pool
 from evaluators.pipeline import run_evaluation
 from predictors.drift_predictor import PredictiveDriftEngine
 from scheduler import start_scheduler
+from validators.statistical import StatisticalValidator, confidence_interval_95
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aipq.ai-engine")
@@ -128,6 +129,44 @@ async def predictions():
             "prompt_name": row["prompt_name"], **trend,
         })
     return {"predictions": results}
+
+
+@app.get("/analyze/confidence")
+async def confidence(prompt_id: int):
+    """
+    Per-version 95% confidence interval and significance-vs-previous-version,
+    for every version of one prompt — StatisticalValidator's intended
+    dashboard integration (see that module's docstring): turns "Score: 0.93"
+    into "Score: 0.93 +/- 0.02 (95% CI) — significantly better than v2:
+    yes (p=0.0001, effect size: Large d=4.2)" in the version history table.
+    """
+    validator = StatisticalValidator()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, version_number FROM prompt_versions WHERE prompt_id = $1 ORDER BY version_number ASC",
+            prompt_id,
+        )
+
+    results = []
+    previous_scores: list[float] | None = None
+    previous_version_number: int | None = None
+    for row in rows:
+        scores = await validator.collect_scores(row["id"])
+        entry = {
+            "version_id": row["id"], "version_number": row["version_number"],
+            "sample_size": len(scores),
+            "mean_score": round(sum(scores) / len(scores), 4) if scores else None,
+            "confidence_interval_95": list(confidence_interval_95(scores)) if scores else None,
+            "vs_previous": None,
+        }
+        if previous_scores is not None:
+            comparison = validator.validate_improvement(scores, previous_scores)
+            entry["vs_previous"] = {"version_number": previous_version_number, **comparison}
+        results.append(entry)
+        previous_scores, previous_version_number = scores, row["version_number"]
+
+    return {"prompt_id": prompt_id, "versions": results}
 
 
 @app.get("/health")
