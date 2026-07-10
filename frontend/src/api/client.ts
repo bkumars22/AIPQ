@@ -101,6 +101,10 @@ export interface BusinessMetrics {
   predictions: {
     project_id: number; project_name: string; prompt_name: string
     days_until_risk: number | null; risk_level: string; recommendation: string
+    confidence_interval_7d?: {
+      lower: number | null; upper: number | null; confidence_level: number
+      calibration_size: number; guarantee: string
+    }
   }[]
 }
 

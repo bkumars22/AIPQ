@@ -20,6 +20,8 @@ from typing import Optional
 import httpx
 import numpy as np
 
+from predictors.conformal_predictor import ConformalQualityPredictor
+
 logger = logging.getLogger("aipq.predictors.drift_predictor")
 
 MIN_HISTORY_POINTS = 10
@@ -106,12 +108,23 @@ class PredictiveDriftEngine:
         predicted_30d = next((p for d, p in forecast if d >= min(30, days_ahead)), forecast[-1][1])
 
         risk_level = _risk_level(days_until_risk)
+
+        conformal = ConformalQualityPredictor()
+        nonconformity_scores = conformal.calibrate_from_history([score for _, score in history])
+        interval_7d = conformal.predict_interval(predicted_7d, nonconformity_scores)
+
         return {
             "days_until_risk": days_until_risk,
             "predicted_score_7d": round(predicted_7d, 4),
             "predicted_score_30d": round(predicted_30d, 4),
             "risk_level": risk_level,
             "recommendation": _recommendation(risk_level, days_until_risk, threshold),
+            "confidence_interval_7d": {
+                "lower": interval_7d.lower, "upper": interval_7d.upper,
+                "confidence_level": interval_7d.confidence_level,
+                "calibration_size": interval_7d.calibration_size,
+                "guarantee": interval_7d.guarantee,
+            },
         }
 
     @staticmethod

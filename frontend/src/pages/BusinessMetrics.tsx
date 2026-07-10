@@ -113,14 +113,26 @@ export default function BusinessMetrics() {
           <Card title="Prediction Panel">
             {data.predictions.length === 0 && <p className="text-slate-500 text-sm">No deployed prompts to predict yet.</p>}
             <ul className="space-y-2">
-              {data.predictions.map((p, i) => (
-                <li key={i} className="text-sm">
-                  <span className="font-mono">{p.project_name}/{p.prompt_name}</span>:{' '}
-                  <span className={severityColor(p.risk_level === 'LOW' ? 'NONE' : p.risk_level)}>
-                    {p.risk_level === 'LOW' ? 'stable' : `risk in ${p.days_until_risk} days ⚠️`}
-                  </span>
-                </li>
-              ))}
+              {data.predictions.map((p, i) => {
+                const ci = p.confidence_interval_7d
+                return (
+                  <li key={i} className="text-sm">
+                    <span className="font-mono">{p.project_name}/{p.prompt_name}</span>:{' '}
+                    <span className={severityColor(p.risk_level === 'LOW' ? 'NONE' : p.risk_level)}>
+                      {p.risk_level === 'LOW' ? 'stable' : `risk in ${p.days_until_risk} days ⚠️`}
+                    </span>
+                    {ci && ci.lower !== null && ci.upper !== null && (
+                      <div className="text-xs text-slate-500 mt-0.5" title={ci.guarantee}>
+                        {(ci.confidence_level * 100).toFixed(0)}% conformal interval (7d): {ci.lower.toFixed(2)}–{ci.upper.toFixed(2)}{' '}
+                        (m={ci.calibration_size})
+                      </div>
+                    )}
+                    {ci && ci.lower === null && (
+                      <div className="text-xs text-slate-500 mt-0.5">{ci.guarantee}</div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </Card>
 

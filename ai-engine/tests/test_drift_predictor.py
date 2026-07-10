@@ -69,6 +69,23 @@ class TestPredictQualityTrend:
         assert result["risk_level"] in ("HIGH", "CRITICAL", "MEDIUM")
         assert result["predicted_score_7d"] < 0.95
 
+    @pytest.mark.asyncio
+    async def test_attaches_conformal_interval_around_7d_forecast(self, engine):
+        now = datetime.now(timezone.utc)
+        rows = [
+            {"recorded_at": now - timedelta(days=15 - i), "compliance_score": 0.90 + (i % 3) * 0.01}
+            for i in range(15)
+        ]
+
+        with patch("db.get_pool", new_callable=AsyncMock, return_value=_mock_pool(rows)), \
+             patch.object(PredictiveDriftEngine, "_fit_and_forecast_prophet", side_effect=ImportError):
+            result = await engine.predict_quality_trend(prompt_version_id=1, threshold=0.85)
+
+        interval = result["confidence_interval_7d"]
+        assert interval["calibration_size"] > 0
+        assert interval["lower"] <= result["predicted_score_7d"] <= interval["upper"]
+        assert interval["confidence_level"] == 0.90
+
 
 class TestIdentifyDriftContributors:
     @pytest.mark.asyncio
