@@ -1,8 +1,40 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { api, type VersionConfidence } from '../api/client'
 import { scoreColor, statusColor, severityColor } from '../ui'
+
+function ConfidenceCell({ vc }: { vc: VersionConfidence | undefined }) {
+  if (!vc || vc.mean_score === null) return <span className="text-slate-500">—</span>
+
+  const ci = vc.confidence_interval_95
+  const margin = ci ? (ci[1] - ci[0]) / 2 : 0
+  const vp = vc.vs_previous
+
+  let vsPreviousLabel: string | null = null
+  let vsPreviousColor = 'text-slate-500'
+  if (vp) {
+    if (vp.p_value === null) {
+      vsPreviousLabel = `vs v${vp.version_number}: ${vp.recommendation}`
+    } else if (vp.is_significant) {
+      const better = (vp.effect_size ?? 0) > 0
+      vsPreviousLabel = `${better ? 'Significantly better' : 'Significantly worse'} than v${vp.version_number} (p=${vp.p_value.toFixed(4)}, ${vp.effect_size_label} effect)`
+      vsPreviousColor = better ? 'text-emerald-400' : 'text-red-400'
+    } else {
+      vsPreviousLabel = `No significant difference vs v${vp.version_number} (p=${vp.p_value.toFixed(4)})`
+    }
+  }
+
+  return (
+    <div>
+      <div className="text-slate-300">
+        {vc.mean_score.toFixed(2)}{margin > 0 && <span className="text-slate-500"> ± {margin.toFixed(2)}</span>}
+        <span className="text-xs text-slate-500"> (95% CI, n={vc.sample_size})</span>
+      </div>
+      {vsPreviousLabel && <div className={`text-xs mt-0.5 ${vsPreviousColor}`}>{vsPreviousLabel}</div>}
+    </div>
+  )
+}
 
 export default function ProjectPrompts() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -71,6 +103,11 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
     queryKey: ['drift', projectId, promptName],
     queryFn: () => api.driftStatus(projectId, promptName),
   })
+  const { data: confidence } = useQuery({
+    queryKey: ['confidence', promptId],
+    queryFn: () => api.promptConfidence(promptId),
+  })
+  const confidenceByVersion = new Map((confidence?.versions ?? []).map(v => [v.version_id, v]))
 
   const startTest = useMutation({
     mutationFn: () => api.createABTest(promptId, selected[0], selected[1]),
@@ -105,6 +142,7 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
             <th className="pb-1 pr-4">Version</th>
             <th className="pb-1 pr-4">Status</th>
             <th className="pb-1 pr-4">Score</th>
+            <th className="pb-1 pr-4">Confidence (live)</th>
             <th className="pb-1 pr-4">Changed by</th>
             <th className="pb-1 pr-4">Message</th>
             <th className="pb-1">Deployed</th>
@@ -125,6 +163,9 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
               <td className={`py-1 pr-4 ${statusColor(v.status)}`}>{v.status}</td>
               <td className={`py-1 pr-4 ${scoreColor(v.quality_score)}`}>
                 {v.quality_score !== null ? v.quality_score.toFixed(2) : '—'}
+              </td>
+              <td className="py-1 pr-4">
+                <ConfidenceCell vc={confidenceByVersion.get(v.id)} />
               </td>
               <td className="py-1 pr-4">{v.changed_by}</td>
               <td className="py-1 pr-4 text-slate-400">{v.change_message ?? '—'}</td>

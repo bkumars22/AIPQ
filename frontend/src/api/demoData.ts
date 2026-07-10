@@ -4,7 +4,7 @@
 // drifted to prove the IsolationForest -> automatic rollback loop, and
 // QAIP's prompt genuinely has no deployed version yet (its one evaluation
 // attempt failed because this dev environment has no real GROQ_API_KEY).
-import type { ABTestResults, BusinessMetrics, DriftStatus, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
+import type { ABTestResults, BusinessMetrics, DriftStatus, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
 
 export const DEMO_PROJECTS: ProjectSummary[] = [
   {
@@ -128,6 +128,33 @@ export const DEMO_BUSINESS_METRICS: BusinessMetrics = {
       recommendation: 'Not enough history (1/10 points) to forecast yet.',
     },
   ],
+}
+
+// Mirrors the real (v1 vs v2) rollback story from DEMO_VERSIONS above,
+// replayed through StatisticalValidator's confidence-interval + significance
+// analysis: v1 was solid (12 samples around 0.93), v2 ("sped up responses")
+// regressed hard enough that the difference is statistically significant —
+// this is what actually justified the automatic rollback shown elsewhere.
+export const DEMO_CONFIDENCE: Record<number, PromptConfidence> = {
+  1: {
+    prompt_id: 1,
+    versions: [
+      {
+        version_id: 1, version_number: 1, sample_size: 12, mean_score: 0.93,
+        confidence_interval_95: [0.912, 0.948], vs_previous: null,
+      },
+      {
+        version_id: 2, version_number: 2, sample_size: 12, mean_score: 0.60,
+        confidence_interval_95: [0.582, 0.618],
+        vs_previous: {
+          version_number: 1, p_value: 0.0001, effect_size: -4.2, effect_size_label: 'Large',
+          is_significant: true,
+          recommendation: 'Do not deploy — significantly worse (large effect, p=0.0001)',
+        },
+      },
+    ],
+  },
+  2: { prompt_id: 2, versions: [] },
 }
 
 // Mirrors the real (v1 vs v2) A/B test run against the live stack while

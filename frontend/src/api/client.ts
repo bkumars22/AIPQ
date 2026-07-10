@@ -1,4 +1,4 @@
-import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -104,6 +104,29 @@ export interface BusinessMetrics {
   }[]
 }
 
+export interface ConfidenceVsPrevious {
+  version_number: number
+  p_value: number | null
+  effect_size: number | null
+  effect_size_label: string | null
+  is_significant: boolean
+  recommendation: string
+}
+
+export interface VersionConfidence {
+  version_id: number
+  version_number: number
+  sample_size: number
+  mean_score: number | null
+  confidence_interval_95: [number, number] | null
+  vs_previous: ConfidenceVsPrevious | null
+}
+
+export interface PromptConfidence {
+  prompt_id: number
+  versions: VersionConfidence[]
+}
+
 export interface ABTestArmStats {
   version_id: number
   version_number: number
@@ -143,6 +166,10 @@ export const api = {
   driftStatus: (projectId: number, promptName: string) =>
     DEMO_MODE ? demoDelay(DEMO_DRIFT[`${projectId}:${promptName}`])
       : apiGet<DriftStatus>(`/drift/status?project_id=${projectId}&prompt_name=${encodeURIComponent(promptName)}`),
+
+  promptConfidence: (promptId: number) =>
+    DEMO_MODE ? demoDelay(DEMO_CONFIDENCE[promptId] ?? { prompt_id: promptId, versions: [] })
+      : apiGet<PromptConfidence>(`/prompts/${promptId}/confidence`),
 
   businessMetrics: () =>
     DEMO_MODE ? demoDelay(DEMO_BUSINESS_METRICS)
