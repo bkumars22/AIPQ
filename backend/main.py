@@ -9,6 +9,7 @@ and avoids reimplementing route matching that Depends already does.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -17,6 +18,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from db.migrate import run_migrations
 from db.session import create_pg_pool, create_redis_client
 from rate_limit import limiter
 from routers import ab_tests, drift, golden_cases, metrics, projects, prompts
@@ -24,11 +26,18 @@ from routers import ab_tests, drift, golden_cases, metrics, projects, prompts
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aipq.backend")
 
+# Comma-separated list of allowed frontend origins. Defaults to local dev
+# only — a deployed frontend origin (e.g. a Render static site URL) must be
+# added via this env var, or its requests will be silently blocked by CORS.
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3001").split(",") if o.strip()]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Connecting PostgreSQL pool...")
     app.state.pg_pool = await create_pg_pool()
+    logger.info("Applying database migrations...")
+    await run_migrations(app.state.pg_pool)
     logger.info("Connecting Redis...")
     app.state.redis = create_redis_client()
 
@@ -48,7 +57,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

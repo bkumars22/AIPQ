@@ -15,18 +15,18 @@ query, not a fixture.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Request
 
 from auth.dependencies import AuthContext, get_auth_context
+from config import ai_engine_url
 
 logger = logging.getLogger("aipq.backend.metrics")
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
-AI_ENGINE_URL = os.getenv("AI_ENGINE_URL", "http://localhost:8002")
+AI_ENGINE_URL = ai_engine_url()
 
 # ── Assumed constants (no real tracked signal exists for these in AIPQ) ────
 ASSUMED_MANUAL_MINUTES_PER_ITERATION = 30   # a human iterate-eval-review pass

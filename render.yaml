@@ -1,0 +1,104 @@
+# Render Blueprint for AIPQ — see DEPLOY.md for the manual steps this
+# blueprint can't do itself (connecting the repo, adding LLM API keys,
+# minting the frontend's admin token after first deploy).
+#
+# Deploy: render.com dashboard -> New -> Blueprint -> select this repo.
+# Render reads this file and proposes all 5 services below for review
+# before creating anything.
+
+databases:
+  - name: aipq-db
+    databaseName: aipq
+    user: aipq
+    plan: free
+    postgresMajorVersion: "15"
+    region: oregon
+
+services:
+  - name: aipq-redis
+    type: keyvalue
+    plan: free
+    region: oregon
+    ipAllowList:
+      - source: 0.0.0.0/0
+
+  - name: aipq-backend
+    type: web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: AIPQ_DATABASE_URL
+        fromDatabase:
+          name: aipq-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: aipq-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_ENGINE_URL
+        fromService:
+          name: aipq-ai-engine
+          property: hostport
+      # Set once the frontend's URL is known (Render assigns it on first
+      # deploy) — comma-separated if you also keep the GitHub Pages demo.
+      - key: CORS_ORIGINS
+        sync: false
+
+  - name: aipq-ai-engine
+    type: web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./ai-engine/Dockerfile
+    dockerContext: ./ai-engine
+    healthCheckPath: /health
+    envVars:
+      - key: AIPQ_DATABASE_URL
+        fromDatabase:
+          name: aipq-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: aipq-redis
+          property: connectionString
+      # At least one LLM key is required — deepeval scoring has no judge
+      # without one. Add whichever you actually have in the Render dashboard.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_ENDPOINT
+        sync: false
+      - key: AZURE_OPENAI_DEPLOYMENT_NAME
+        sync: false
+
+  - name: aipq-frontend
+    type: web
+    runtime: static
+    rootDir: ./frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Render doesn't support string interpolation in this file, and
+      # fromService's host/hostport properties are private-network-only
+      # (unreachable from a browser) — so this has to be the predicted
+      # public URL, hardcoded. It matches the "name:" of aipq-backend above
+      # unless that subdomain was already taken, in which case fix this
+      # value to match what Render actually assigned and redeploy this
+      # service (static sites bake env vars in at build time). See DEPLOY.md.
+      - key: VITE_API_URL
+        value: https://aipq-backend.onrender.com
+      # Leave unset for the first deploy — there's no backend JWT_SECRET
+      # to sign a token with until aipq-backend exists. After first deploy,
+      # mint one and set it here, then manually redeploy this service.
+      # See DEPLOY.md step 4.
+      - key: VITE_DEV_JWT
+        sync: false

@@ -5,12 +5,12 @@ GET /prompts/{id}/versions, GET /prompts/{id}/current.
 from __future__ import annotations
 
 import logging
-import os
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from auth.dependencies import AuthContext, get_auth_context
+from config import ai_engine_url
 from models.schemas import (
     CurrentVersionResponse,
     PromptRegisterRequest,
@@ -89,10 +89,10 @@ async def _trigger_evaluation(version_id: int) -> None:
     here are logged, not raised, so version creation is never blocked by it.
     Evaluation stays in TESTING status until ai-engine processes it.
     """
-    ai_engine_url = os.getenv("AI_ENGINE_URL", "http://localhost:8002")
+    url = ai_engine_url()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(f"{ai_engine_url}/evaluate", json={"version_id": version_id})
+            await client.post(f"{url}/evaluate", json={"version_id": version_id})
     except httpx.HTTPError as exc:
         logger.warning("Could not trigger evaluation for version %d (ai-engine unreachable): %s", version_id, exc)
 
@@ -188,10 +188,10 @@ async def get_prompt_confidence(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
         _require_own_project(auth, prompt_row["project_id"])
 
-    ai_engine_url = os.getenv("AI_ENGINE_URL", "http://localhost:8002")
+    url = ai_engine_url()
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"{ai_engine_url}/analyze/confidence", params={"prompt_id": prompt_id})
+            resp = await client.get(f"{url}/analyze/confidence", params={"prompt_id": prompt_id})
             resp.raise_for_status()
             return resp.json()
     except httpx.HTTPError as exc:
