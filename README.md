@@ -293,7 +293,7 @@ When drift is CRITICAL:
 AIPQ backend sends to Slack webhook:
 
   ┌─────────────────────────────────────────┐
-  │ 🚨 AIPQ Alert — Critical Prompt Drift  │
+  │  AIPQ Alert — Critical Prompt Drift  │
   │                                         │
   │ Prompt: aria_socratic_system            │
   │ Score:  0.93 → 0.60 (CRITICAL drop)    │
