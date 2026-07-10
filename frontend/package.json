@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:ghpages": "tsc -b && vite build --mode ghpages",
     "lint": "oxlint",
     "preview": "vite preview"
   },

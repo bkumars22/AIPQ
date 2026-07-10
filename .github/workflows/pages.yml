@@ -22,7 +22,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npm run build
+          npm run build:ghpages
 
       - name: Add .nojekyll
         run: touch frontend/dist/.nojekyll
