@@ -147,3 +147,58 @@ class GoldenCaseCreateRequest(BaseModel):
 
 class GoldenCaseCreateResponse(BaseModel):
     case_id: int
+
+
+# ── A/B tests ─────────────────────────────────────────────────────────────
+
+class ABTestCreateRequest(BaseModel):
+    prompt_id: int
+    version_a_id: int
+    version_b_id: int
+    traffic_split: float = Field(default=0.5, ge=0.0, le=1.0)  # fraction of requests routed to version A
+    min_samples: int = Field(default=100, ge=1)
+
+
+class ABTestCreateResponse(BaseModel):
+    ab_test_id: int
+    status: str
+
+
+class ABTestAssignmentResponse(BaseModel):
+    ab_test_id: int
+    version_used: str  # "A" | "B"
+    version_id: int
+    content: str
+
+
+class ABResultRecordRequest(BaseModel):
+    version_used: str = Field(..., pattern="^[AB]$")
+    quality_score: float = Field(..., ge=0.0, le=1.0)
+
+
+class ABTestArmStats(BaseModel):
+    version_id: int
+    version_number: int
+    n: int
+    mean_score: Optional[float]
+    stdev: Optional[float]
+
+
+class ABTestResultsResponse(BaseModel):
+    ab_test_id: int
+    prompt_id: int
+    status: str  # RUNNING | COMPLETED | CANCELLED
+    traffic_split: float
+    min_samples: int
+    current_samples: int
+    version_a: ABTestArmStats
+    version_b: ABTestArmStats
+    p_value: Optional[float]
+    significant: bool
+    winner_version_id: Optional[int]
+    recommendation: str
+
+
+class ABTestPromoteResponse(BaseModel):
+    promoted_version_id: int
+    status: str
