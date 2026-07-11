@@ -30,6 +30,9 @@ logger = logging.getLogger("aipq.backend")
 # only — a deployed frontend origin (e.g. a Render static site URL) must be
 # added via this env var, or its requests will be silently blocked by CORS.
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3001").split(",") if o.strip()]
+# %r (not %s) deliberately, so a stray quote/space/newline in the raw env
+# var value shows up as visible repr() escaping in the logs, not silently.
+logger.info("CORS_ORIGINS resolved to: %r", CORS_ORIGINS)
 
 
 @asynccontextmanager
