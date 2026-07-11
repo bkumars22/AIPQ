@@ -20,19 +20,23 @@ from __future__ import annotations
 
 import logging
 
-from providers import run_prompt_on_provider
+from providers import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE, run_prompt_on_provider
 
 logger = logging.getLogger("aipq.evaluators.scoring")
 
 
 async def score_content(
     content: str, test_cases: list[dict], threshold: float = 0.85, provider: str = "groq",
+    temperature: float = DEFAULT_TEMPERATURE, max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> dict:
     """
     Runs `content` as the system prompt against every test case's input on
-    the given provider, judges each response the same way pipeline.py's
-    run_deepeval_scoring does, and returns an aggregate result — nothing
-    is persisted.
+    the given provider (with the given generation parameters), judges each
+    response the same way pipeline.py's run_deepeval_scoring does, and
+    returns an aggregate result — nothing is persisted. temperature/
+    max_tokens overrides exist for the causal attribution analyzer, which
+    needs to re-score the same content with one generation parameter
+    reverted to an earlier version's value.
     """
     per_case: list[dict] = []
 
@@ -61,7 +65,7 @@ async def score_content(
         deepeval_available = False
 
     for case in test_cases:
-        output = await run_prompt_on_provider(provider, content, case["input_text"])
+        output = await run_prompt_on_provider(provider, content, case["input_text"], temperature, max_tokens)
         output_lower = output.lower()
 
         forbidden_hit = next((p for p in case.get("forbidden_patterns", []) if p.lower() in output_lower), None)

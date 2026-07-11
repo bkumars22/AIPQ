@@ -22,8 +22,12 @@ from llm_judge import GroqDeepEvalModel  # noqa: E402
 
 
 class TestGroqDeepEvalModel:
-    def test_is_a_real_deepeval_base_llm_subclass(self):
-        assert issubclass(GroqDeepEvalModel, DeepEvalBaseLLM)
+    def test_instance_is_a_real_deepeval_base_llm(self):
+        # GroqDeepEvalModel is a factory function (not a class) so deepeval
+        # stays a lazy import — see llm_judge.py's module docstring on the
+        # instance for why. What matters is the returned instance still
+        # really is a DeepEvalBaseLLM, not just duck-typed.
+        assert isinstance(GroqDeepEvalModel(), DeepEvalBaseLLM)
 
     def test_geval_accepts_it_without_raising_typeerror(self):
         # The regression test: this exact construction used to raise

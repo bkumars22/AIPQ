@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import os
 
-from deepeval.models import DeepEvalBaseLLM
 from groq import Groq
 
 _EXECUTOR_MODEL = "llama-3.3-70b-versatile"
@@ -44,38 +43,67 @@ async def run_prompt_under_test(system_prompt: str, user_input: str) -> str:
     return await asyncio.to_thread(_call)
 
 
-class GroqDeepEvalModel(DeepEvalBaseLLM):
+_groq_deep_eval_model_cls = None
+
+
+def _build_groq_deep_eval_model_cls():
     """
-    deepeval-compatible adapter for Groq's chat completion API.
-
-    Was previously a plain (non-subclassed) duck-typed class — it
-    implemented the right method names but deepeval.metrics.utils'
-    isinstance(model, DeepEvalBaseLLM) check rejected it outright, so every
-    GEval(model=GroqDeepEvalModel()) construction raised TypeError. That
-    means every evaluation in this project has been failing at exactly
-    this point — swallowed by pipeline.py's broad `except Exception`
-    handler and reported as a generic failed evaluation — regardless of
-    whether a real GROQ_API_KEY was configured. Fixing the inheritance is
-    what actually lets a configured key produce a real score.
+    Builds the real GroqDeepEvalModel class on first use, importing
+    deepeval.models lazily rather than at module load time — deepeval's
+    package __init__ eagerly validates a pydantic Settings object that
+    chokes on AZURE_OPENAI_ENDPOINT="" (present-but-empty, as Docker Compose
+    sets it when unset, rather than truly absent), so importing deepeval at
+    module scope crashes ai-engine's startup entirely. Importing it lazily,
+    only when a GroqDeepEvalModel is actually constructed (i.e. when an
+    evaluation actually runs), matches how deepeval was already imported
+    everywhere else in this codebase and keeps that separate, pre-existing
+    settings bug from turning into a hard startup crash.
     """
+    from deepeval.models import DeepEvalBaseLLM
 
-    def __init__(self, model_name: str = _EXECUTOR_MODEL):
-        self.model_name = model_name
-        super().__init__(model_name)
+    class _GroqDeepEvalModel(DeepEvalBaseLLM):
+        """
+        deepeval-compatible adapter for Groq's chat completion API.
 
-    def load_model(self):
-        return _groq_client()
+        Was previously a plain (non-subclassed) duck-typed class — it
+        implemented the right method names but deepeval.metrics.utils'
+        isinstance(model, DeepEvalBaseLLM) check rejected it outright, so
+        every GEval(model=GroqDeepEvalModel()) construction raised
+        TypeError. That means every evaluation in this project has been
+        failing at exactly this point — swallowed by pipeline.py's broad
+        `except Exception` handler and reported as a generic failed
+        evaluation — regardless of whether a real GROQ_API_KEY was
+        configured. Fixing the inheritance is what actually lets a
+        configured key produce a real score.
+        """
 
-    def generate(self, prompt: str) -> str:
-        resp = self.model.chat.completions.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-        )
-        return resp.choices[0].message.content or ""
+        def __init__(self, model_name: str = _EXECUTOR_MODEL):
+            self.model_name = model_name
+            super().__init__(model_name)
 
-    async def a_generate(self, prompt: str) -> str:
-        return await asyncio.to_thread(self.generate, prompt)
+        def load_model(self):
+            return _groq_client()
 
-    def get_model_name(self) -> str:
-        return f"groq/{self.model_name}"
+        def generate(self, prompt: str) -> str:
+            resp = self.model.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+            )
+            return resp.choices[0].message.content or ""
+
+        async def a_generate(self, prompt: str) -> str:
+            return await asyncio.to_thread(self.generate, prompt)
+
+        def get_model_name(self) -> str:
+            return f"groq/{self.model_name}"
+
+    return _GroqDeepEvalModel
+
+
+def GroqDeepEvalModel(model_name: str = _EXECUTOR_MODEL):
+    """Factory (not a class) so deepeval stays a lazy import — see _build_groq_deep_eval_model_cls."""
+    global _groq_deep_eval_model_cls
+    if _groq_deep_eval_model_cls is None:
+        _groq_deep_eval_model_cls = _build_groq_deep_eval_model_cls()
+    return _groq_deep_eval_model_cls(model_name)

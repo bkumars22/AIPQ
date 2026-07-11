@@ -56,15 +56,22 @@ services:
       db:
         condition: service_healthy
     environment:
-      AIPQ_DATABASE_URL: postgresql://${POSTGRES_USER:-aipq}:${POSTGRES_PASSWORD:-aipq_local_2026}@db:5432/${POSTGRES_DB:-aipq}
-      REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
-      AZURE_OPENAI_DEPLOYMENT_NAME: ${AZURE_OPENAI_DEPLOYMENT_NAME:-}
-      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-02-01}
-      BACKEND_URL: http://backend:8001
+      - AIPQ_DATABASE_URL=postgresql://${POSTGRES_USER:-aipq}:${POSTGRES_PASSWORD:-aipq_local_2026}@db:5432/${POSTGRES_DB:-aipq}
+      - REDIS_URL=redis://redis:6379/0
+      - BACKEND_URL=http://backend:8001
+      # Bare passthrough (no "=value") on purpose: this passes the host's
+      # value through *only if set*, and omits the key from the container
+      # entirely otherwise. That matters specifically for the AZURE_OPENAI_*
+      # vars — deepeval's own pydantic Settings validates AZURE_OPENAI_ENDPOINT
+      # as a URL and crashes on an empty string, which is exactly what
+      # `KEY: ${VAR:-}` map-style syntax used to produce (present-but-empty)
+      # even when Azure isn't configured at all.
+      - ANTHROPIC_API_KEY
+      - GROQ_API_KEY
+      - AZURE_OPENAI_API_KEY
+      - AZURE_OPENAI_ENDPOINT
+      - AZURE_OPENAI_DEPLOYMENT_NAME
+      - AZURE_OPENAI_API_VERSION
     ports:
       - "8002:8002"
     healthcheck:

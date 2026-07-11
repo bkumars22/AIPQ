@@ -230,6 +230,36 @@ async def get_prompt_causal_impact(
         return {"prompt_id": prompt_id, "estimated_effect": None, "interpretation": "ai-engine unreachable"}
 
 
+@router.get("/{prompt_id}/causal-attribution")
+async def get_prompt_causal_attribution(
+    prompt_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """
+    Proxies ai-engine's per-factor causal attribution (see
+    analyzers/causal.py) — unlike the other /analyze/* proxies, this one
+    triggers real LLM calls per factor being tested (a re-scored
+    counterfactual per changed factor), so it gets a much longer timeout.
+    """
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+    url = ai_engine_url()
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.get(f"{url}/analyze/causal-attribution", params={"prompt_id": prompt_id})
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPError as exc:
+        logger.warning("ai-engine unreachable for /analyze/causal-attribution (prompt %d): %s", prompt_id, exc)
+        return {"prompt_id": prompt_id, "factors": [], "interpretation": "ai-engine unreachable"}
+
+
 @router.get("/{prompt_id}/current", response_model=CurrentVersionResponse)
 async def get_current_version(
     prompt_id: int,

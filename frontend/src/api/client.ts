@@ -1,4 +1,4 @@
-import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_IMPACT, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -146,6 +146,28 @@ export interface CausalImpact {
   caveat: string
 }
 
+export interface CausalFactor {
+  factor: string
+  changed: boolean
+  current_value: number
+  previous_value: number
+  counterfactual_score: number | null
+  recovered_effect: number | null
+  share_pct: number | null
+  note: string
+}
+
+export interface CausalAttribution {
+  prompt_id: number
+  current_version_id: number | null
+  previous_version_id: number | null
+  current_score: number | null
+  previous_score: number | null
+  total_gap: number | null
+  factors: CausalFactor[]
+  interpretation: string
+}
+
 export interface ABTestArmStats {
   version_id: number
   version_number: number
@@ -198,6 +220,18 @@ export const api = {
       caveat: '',
     })
       : apiGet<CausalImpact>(`/prompts/${promptId}/causal-impact`),
+
+  causalAttribution: (promptId: number) =>
+    DEMO_MODE ? demoDelay(DEMO_CAUSAL_ATTRIBUTION[promptId] ?? {
+      prompt_id: promptId, current_version_id: null, previous_version_id: null,
+      current_score: null, previous_score: null, total_gap: null, factors: [],
+      interpretation: 'No previous version to compare against.',
+    })
+      // Real LLM calls per changed factor — can take much longer than the
+      // other analyze/* calls (backend proxy uses a 120s timeout for this
+      // one specifically); apiGet's fetch() has no client-side timeout of
+      // its own, so it just waits.
+      : apiGet<CausalAttribution>(`/prompts/${promptId}/causal-attribution`),
 
   businessMetrics: () =>
     DEMO_MODE ? demoDelay(DEMO_BUSINESS_METRICS)

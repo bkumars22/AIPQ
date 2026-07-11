@@ -1,12 +1,25 @@
 """AIPQ ai-engine — receives evaluation triggers from the backend and runs the LangGraph pipeline."""
 from __future__ import annotations
 
+import os
+
+# deepeval's own pydantic Settings validates AZURE_OPENAI_ENDPOINT as a URL
+# and crashes the whole process on import if it's present-but-empty (as
+# opposed to truly unset) — which is exactly what happens whether it comes
+# from a docker-compose.yml default, a stray blank line in .env, or an
+# unset Render dashboard var. Scrub it before anything below (pipeline.py
+# -> llm_judge.py) can trigger a deepeval import, regardless of how this
+# process was launched.
+if not os.environ.get("AZURE_OPENAI_ENDPOINT"):
+    os.environ.pop("AZURE_OPENAI_ENDPOINT", None)
+
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from analyzers.causal import CausalAttributionAnalyzer
 from analyzers.coverage import COVERED_THRESHOLD, PromptCoverageAnalyzer
 from db import close_all, get_pool
 from evaluators.pipeline import run_evaluation
@@ -194,6 +207,48 @@ async def causal_impact(prompt_id: int):
         "sample_size_post": result.sample_size_post,
         "interpretation": result.interpretation,
         "caveat": result.caveat,
+    }
+
+
+@app.get("/analyze/causal-attribution")
+async def causal_attribution(prompt_id: int):
+    """
+    Per-factor causal attribution for the currently-deployed version vs.
+    the one it replaced — see analyzers/causal.py's module docstring for
+    the method (real re-scored counterfactuals, not a fitted decomposition)
+    and which factors are exact (temperature, max_tokens) vs. heuristic
+    (prompt_length, example_count).
+
+    Unlike the DB-only /analyze/* routes, this one makes real LLM calls per
+    changed factor — if the configured provider is unreachable or has no
+    valid API key, that's reported as a clear message, not an opaque 500.
+    """
+    analyzer = CausalAttributionAnalyzer()
+    try:
+        result = await analyzer.attribute_change(prompt_id)
+    except Exception as exc:
+        logger.warning("causal_attribution failed for prompt %d: %s", prompt_id, exc)
+        return {
+            "prompt_id": prompt_id, "current_version_id": None, "previous_version_id": None,
+            "current_score": None, "previous_score": None, "total_gap": None, "factors": [],
+            "interpretation": f"Could not complete analysis — LLM provider call failed: {exc}",
+        }
+    return {
+        "prompt_id": result.prompt_id,
+        "current_version_id": result.current_version_id,
+        "previous_version_id": result.previous_version_id,
+        "current_score": result.current_score,
+        "previous_score": result.previous_score,
+        "total_gap": result.total_gap,
+        "factors": [
+            {
+                "factor": f.factor, "changed": f.changed, "current_value": f.current_value,
+                "previous_value": f.previous_value, "counterfactual_score": f.counterfactual_score,
+                "recovered_effect": f.recovered_effect, "share_pct": f.share_pct, "note": f.note,
+            }
+            for f in result.factors
+        ],
+        "interpretation": result.interpretation,
     }
 
 

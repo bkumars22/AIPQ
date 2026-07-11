@@ -112,6 +112,11 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
     queryKey: ['causal-impact', promptId],
     queryFn: () => api.causalImpact(promptId),
   })
+  const { data: causalAttribution } = useQuery({
+    queryKey: ['causal-attribution', promptId],
+    queryFn: () => api.causalAttribution(promptId),
+    staleTime: 10 * 60 * 1000, // makes real LLM calls per changed factor — don't refetch aggressively
+  })
 
   const startTest = useMutation({
     mutationFn: () => api.createABTest(promptId, selected[0], selected[1]),
@@ -146,6 +151,34 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
             {causalImpact.relative_effect_pct !== null && ` (${causalImpact.relative_effect_pct > 0 ? '+' : ''}${causalImpact.relative_effect_pct}%)`}
           </span>
           <span className="text-slate-500"> — {causalImpact.interpretation}</span>
+        </div>
+      )}
+
+      {causalAttribution && causalAttribution.factors.some(f => f.changed) && (
+        <div className="text-sm rounded border border-slate-700 p-3">
+          <div className="text-slate-300 mb-2">{causalAttribution.interpretation}</div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 text-left">
+                <th className="pr-4 pb-1">Factor</th>
+                <th className="pr-4 pb-1">Current</th>
+                <th className="pr-4 pb-1">Previous</th>
+                <th className="pr-4 pb-1">Counterfactual score</th>
+                <th className="pb-1">Share of gap</th>
+              </tr>
+            </thead>
+            <tbody>
+              {causalAttribution.factors.filter(f => f.changed).map(f => (
+                <tr key={f.factor} className="border-t border-slate-800" title={f.note}>
+                  <td className="pr-4 py-1 text-slate-300">{f.factor.replace(/_/g, ' ')}</td>
+                  <td className="pr-4 py-1 text-slate-400">{String(f.current_value)}</td>
+                  <td className="pr-4 py-1 text-slate-400">{String(f.previous_value)}</td>
+                  <td className="pr-4 py-1 text-slate-400">{f.counterfactual_score?.toFixed(4) ?? '—'}</td>
+                  <td className="py-1 font-semibold text-slate-300">{f.share_pct !== null ? `${f.share_pct}%` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

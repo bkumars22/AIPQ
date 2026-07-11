@@ -4,7 +4,7 @@
 // drifted to prove the IsolationForest -> automatic rollback loop, and
 // QAIP's prompt genuinely has no deployed version yet (its one evaluation
 // attempt failed because this dev environment has no real GROQ_API_KEY).
-import type { ABTestResults, BusinessMetrics, CausalImpact, DriftStatus, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
+import type { ABTestResults, BusinessMetrics, CausalAttribution, CausalImpact, DriftStatus, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
 
 export const DEMO_PROJECTS: ProjectSummary[] = [
   {
@@ -189,5 +189,44 @@ export const DEMO_CAUSAL_IMPACT: Record<number, CausalImpact> = {
     estimated_effect: null, relative_effect_pct: null, p_value: null, is_significant: false,
     sample_size_pre: 0, sample_size_post: 0, interpretation: 'No previous version to compare against.',
     caveat: '',
+  },
+}
+
+// Same v2-was-flagged snapshot as DEMO_CAUSAL_IMPACT above, decomposed by
+// factor — v2's regression really was mostly a temperature change (0.3 ->
+// 0.8), consistent with the "sped up responses" change_message already in
+// DEMO_VERSIONS. prompt_length/example_count barely moved and contributed
+// little, which is realistic: not every changed factor is equally causal.
+export const DEMO_CAUSAL_ATTRIBUTION: Record<number, CausalAttribution> = {
+  1: {
+    prompt_id: 1, current_version_id: 2, previous_version_id: 1,
+    current_score: 0.60, previous_score: 0.93, total_gap: -0.33,
+    factors: [
+      {
+        factor: 'temperature', changed: true, current_value: 0.8, previous_value: 0.3,
+        counterfactual_score: 0.89, recovered_effect: 0.29, share_pct: 82.9,
+        note: 'Exact counterfactual: current content re-scored with temperature reverted to 0.3 (previous version’s value), everything else held at current.',
+      },
+      {
+        factor: 'max_tokens', changed: false, current_value: 4096, previous_value: 4096,
+        counterfactual_score: null, recovered_effect: null, share_pct: null, note: 'Unchanged between versions.',
+      },
+      {
+        factor: 'prompt_length', changed: true, current_value: 58, previous_value: 32,
+        counterfactual_score: 0.64, recovered_effect: 0.04, share_pct: 11.4,
+        note: 'HEURISTIC counterfactual, not a clean isolation: current content truncated to the previous version’s character length (32 vs 58 chars).',
+      },
+      {
+        factor: 'example_count', changed: true, current_value: 0, previous_value: 1,
+        counterfactual_score: 0.60, recovered_effect: 0.02, share_pct: 5.7,
+        note: 'previous version had fewer examples — no meaningful counterfactual to construct by removal',
+      },
+    ],
+    interpretation: 'temperature is the largest contributor (82.9% of the explained gap) — reverting just temperature to its previous value would have scored 0.8900 instead of 0.6000, a recovery of +0.2900.',
+  },
+  2: {
+    prompt_id: 2, current_version_id: null, previous_version_id: null,
+    current_score: null, previous_score: null, total_gap: null, factors: [],
+    interpretation: 'No previous version to compare against.',
   },
 }
