@@ -37,12 +37,14 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
+          type: keyvalue
           name: aipq-redis
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: AI_ENGINE_URL
         fromService:
+          type: web
           name: aipq-ai-engine
           property: hostport
       # Set once the frontend's URL is known (Render assigns it on first
@@ -65,6 +67,7 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
+          type: keyvalue
           name: aipq-redis
           property: connectionString
       # At least one LLM key is required — deepeval scoring has no judge
