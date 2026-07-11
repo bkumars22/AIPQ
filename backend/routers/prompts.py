@@ -260,6 +260,35 @@ async def get_prompt_causal_attribution(
         return {"prompt_id": prompt_id, "factors": [], "interpretation": "ai-engine unreachable"}
 
 
+@router.get("/{prompt_id}/portability")
+async def get_prompt_portability(
+    prompt_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """
+    Proxies ai-engine's cross-provider portability check (see
+    validators/portability.py) — also makes real LLM calls (one per
+    configured provider), same long timeout as causal-attribution.
+    """
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+    url = ai_engine_url()
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.get(f"{url}/analyze/portability", params={"prompt_id": prompt_id})
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPError as exc:
+        logger.warning("ai-engine unreachable for /analyze/portability (prompt %d): %s", prompt_id, exc)
+        return {"prompt_id": prompt_id, "scores": [], "interpretation": "ai-engine unreachable"}
+
+
 @router.get("/{prompt_id}/current", response_model=CurrentVersionResponse)
 async def get_current_version(
     prompt_id: int,

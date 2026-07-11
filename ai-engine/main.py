@@ -26,6 +26,7 @@ from evaluators.pipeline import run_evaluation
 from predictors.causal_impact import CausalImpactAnalyzer
 from predictors.drift_predictor import PredictiveDriftEngine
 from scheduler import start_scheduler
+from validators.portability import PromptPortabilityValidator
 from validators.statistical import StatisticalValidator, confidence_interval_95
 
 logging.basicConfig(level=logging.INFO)
@@ -248,6 +249,41 @@ async def causal_attribution(prompt_id: int):
             }
             for f in result.factors
         ],
+        "interpretation": result.interpretation,
+    }
+
+
+@app.get("/analyze/portability")
+async def portability(prompt_id: int):
+    """
+    Cross-provider portability check for the currently-deployed version —
+    see validators/portability.py's module docstring for the method,
+    which providers are actually tested (only ones with a configured key),
+    and the judge-model caveat.
+    """
+    validator = PromptPortabilityValidator()
+    try:
+        result = await validator.check_portability(prompt_id)
+    except Exception as exc:
+        logger.warning("portability check failed for prompt %d: %s", prompt_id, exc)
+        return {
+            "prompt_id": prompt_id, "version_id": None, "providers_tested": [], "providers_skipped": [],
+            "scores": [], "min_score": None, "max_score": None, "portability_score": None, "warning": None,
+            "interpretation": f"Could not complete portability check: {exc}",
+        }
+    return {
+        "prompt_id": result.prompt_id,
+        "version_id": result.version_id,
+        "providers_tested": result.providers_tested,
+        "providers_skipped": result.providers_skipped,
+        "scores": [
+            {"provider": s.provider, "overall_score": s.overall_score, "error": s.error}
+            for s in result.scores
+        ],
+        "min_score": result.min_score,
+        "max_score": result.max_score,
+        "portability_score": result.portability_score,
+        "warning": result.warning,
         "interpretation": result.interpretation,
     }
 

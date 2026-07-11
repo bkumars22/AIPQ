@@ -1,4 +1,4 @@
-import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PORTABILITY, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -168,6 +168,25 @@ export interface CausalAttribution {
   interpretation: string
 }
 
+export interface ProviderScore {
+  provider: string
+  overall_score: number | null
+  error: string | null
+}
+
+export interface PortabilityResult {
+  prompt_id: number
+  version_id: number | null
+  providers_tested: string[]
+  providers_skipped: string[]
+  scores: ProviderScore[]
+  min_score: number | null
+  max_score: number | null
+  portability_score: number | null
+  warning: string | null
+  interpretation: string
+}
+
 export interface ABTestArmStats {
   version_id: number
   version_number: number
@@ -232,6 +251,14 @@ export const api = {
       // one specifically); apiGet's fetch() has no client-side timeout of
       // its own, so it just waits.
       : apiGet<CausalAttribution>(`/prompts/${promptId}/causal-attribution`),
+
+  portability: (promptId: number) =>
+    DEMO_MODE ? demoDelay(DEMO_PORTABILITY[promptId] ?? {
+      prompt_id: promptId, version_id: null, providers_tested: [], providers_skipped: [],
+      scores: [], min_score: null, max_score: null, portability_score: null, warning: null,
+      interpretation: 'No deployed version to test.',
+    })
+      : apiGet<PortabilityResult>(`/prompts/${promptId}/portability`),
 
   businessMetrics: () =>
     DEMO_MODE ? demoDelay(DEMO_BUSINESS_METRICS)

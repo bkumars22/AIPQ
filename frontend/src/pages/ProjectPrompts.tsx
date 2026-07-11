@@ -117,6 +117,11 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
     queryFn: () => api.causalAttribution(promptId),
     staleTime: 10 * 60 * 1000, // makes real LLM calls per changed factor — don't refetch aggressively
   })
+  const { data: portability } = useQuery({
+    queryKey: ['portability', promptId],
+    queryFn: () => api.portability(promptId),
+    staleTime: 10 * 60 * 1000, // one real LLM call per configured provider — don't refetch aggressively
+  })
 
   const startTest = useMutation({
     mutationFn: () => api.createABTest(promptId, selected[0], selected[1]),
@@ -179,6 +184,29 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {portability && portability.scores.length > 0 && (
+        <div className="text-sm rounded border border-slate-700 p-3">
+          <div className={portability.warning ? 'text-amber-400 mb-2' : 'text-slate-300 mb-2'}>
+            {portability.interpretation}
+          </div>
+          <div className="flex gap-4 text-xs">
+            {portability.scores.map(s => (
+              <div key={s.provider}>
+                <span className="text-slate-500">{s.provider}: </span>
+                <span className={s.overall_score === portability.max_score ? 'text-emerald-400 font-semibold' : 'text-slate-300'}>
+                  {s.overall_score !== null ? s.overall_score.toFixed(2) : `error (${s.error})`}
+                </span>
+              </div>
+            ))}
+          </div>
+          {portability.providers_skipped.length > 0 && (
+            <div className="text-xs text-slate-600 mt-1">
+              Not tested (no API key configured): {portability.providers_skipped.join(', ')}
+            </div>
+          )}
         </div>
       )}
 

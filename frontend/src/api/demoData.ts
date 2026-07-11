@@ -4,7 +4,7 @@
 // drifted to prove the IsolationForest -> automatic rollback loop, and
 // QAIP's prompt genuinely has no deployed version yet (its one evaluation
 // attempt failed because this dev environment has no real GROQ_API_KEY).
-import type { ABTestResults, BusinessMetrics, CausalAttribution, CausalImpact, DriftStatus, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
+import type { ABTestResults, BusinessMetrics, CausalAttribution, CausalImpact, DriftStatus, PortabilityResult, PromptConfidence, ProjectSummary, PromptSummary, PromptVersionSummary } from './client'
 
 export const DEMO_PROJECTS: ProjectSummary[] = [
   {
@@ -228,5 +228,31 @@ export const DEMO_CAUSAL_ATTRIBUTION: Record<number, CausalAttribution> = {
     prompt_id: 2, current_version_id: null, previous_version_id: null,
     current_score: null, previous_score: null, total_gap: null, factors: [],
     interpretation: 'No previous version to compare against.',
+  },
+}
+
+// Illustrative cross-provider snapshot for ARIA's current prompt — not
+// captured from a real multi-provider run (this dev environment has no
+// AZURE_OPENAI_*/ANTHROPIC_API_KEY configured to actually verify one; see
+// the Gap 8/9 pattern above of disclosing what's real vs. not). Numbers
+// are a plausible illustration of the exact scenario the portability
+// validator is built to catch, not a claim about ARIA's real behavior on
+// Azure/Claude.
+export const DEMO_PORTABILITY: Record<number, PortabilityResult> = {
+  1: {
+    prompt_id: 1, version_id: 1, providers_tested: ['groq', 'azure', 'anthropic'], providers_skipped: [],
+    scores: [
+      { provider: 'groq', overall_score: 0.93, error: null },
+      { provider: 'azure', overall_score: 0.87, error: null },
+      { provider: 'anthropic', overall_score: 0.96, error: null },
+    ],
+    min_score: 0.87, max_score: 0.96, portability_score: 0.9063,
+    warning: 'This prompt is NOT reliably portable: azure scores 0.87 vs anthropic\'s 0.96 — a 9.4% relative drop if you switch from anthropic to azure.',
+    interpretation: 'Tested on 3 provider(s): groq=0.93, azure=0.87, anthropic=0.96. This prompt is NOT reliably portable: azure scores 0.87 vs anthropic\'s 0.96 — a 9.4% relative drop if you switch from anthropic to azure.',
+  },
+  2: {
+    prompt_id: 2, version_id: null, providers_tested: [], providers_skipped: ['groq', 'azure', 'anthropic'],
+    scores: [], min_score: null, max_score: null, portability_score: null, warning: null,
+    interpretation: 'No deployed version to test.',
   },
 }
