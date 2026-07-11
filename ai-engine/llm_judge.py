@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import os
 
+from deepeval.models import DeepEvalBaseLLM
 from groq import Groq
 
 _EXECUTOR_MODEL = "llama-3.3-70b-versatile"
@@ -43,18 +44,30 @@ async def run_prompt_under_test(system_prompt: str, user_input: str) -> str:
     return await asyncio.to_thread(_call)
 
 
-class GroqDeepEvalModel:
-    """Minimal deepeval.models.DeepEvalBaseLLM-compatible adapter for Groq."""
+class GroqDeepEvalModel(DeepEvalBaseLLM):
+    """
+    deepeval-compatible adapter for Groq's chat completion API.
+
+    Was previously a plain (non-subclassed) duck-typed class — it
+    implemented the right method names but deepeval.metrics.utils'
+    isinstance(model, DeepEvalBaseLLM) check rejected it outright, so every
+    GEval(model=GroqDeepEvalModel()) construction raised TypeError. That
+    means every evaluation in this project has been failing at exactly
+    this point — swallowed by pipeline.py's broad `except Exception`
+    handler and reported as a generic failed evaluation — regardless of
+    whether a real GROQ_API_KEY was configured. Fixing the inheritance is
+    what actually lets a configured key produce a real score.
+    """
 
     def __init__(self, model_name: str = _EXECUTOR_MODEL):
         self.model_name = model_name
+        super().__init__(model_name)
 
     def load_model(self):
         return _groq_client()
 
     def generate(self, prompt: str) -> str:
-        client = self.load_model()
-        resp = client.chat.completions.create(
+        resp = self.model.chat.completions.create(
             model=self.model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
