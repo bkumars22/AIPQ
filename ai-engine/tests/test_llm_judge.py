@@ -60,6 +60,24 @@ class TestGroqDeepEvalModel:
         assert result == "hello from groq"
         mock_client.chat.completions.create.assert_called_once()
 
+    def test_generate_uses_prompt_library_config(self):
+        # temperature/max_tokens should come from prompt_library.AIPQ_EVAL_JUDGE,
+        # not be hardcoded — this is the regression test for that wiring.
+        from prompt_library import AIPQ_EVAL_JUDGE
+
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock(message=MagicMock(content="scored"))]
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_resp
+
+        with patch("llm_judge._groq_client", return_value=mock_client):
+            model = GroqDeepEvalModel()
+            model.generate("some prompt")
+
+        _, kwargs = mock_client.chat.completions.create.call_args
+        assert kwargs["temperature"] == AIPQ_EVAL_JUDGE.temperature
+        assert kwargs["max_tokens"] == AIPQ_EVAL_JUDGE.max_tokens
+
     @pytest.mark.asyncio
     async def test_a_generate_delegates_to_generate(self):
         mock_resp = MagicMock()

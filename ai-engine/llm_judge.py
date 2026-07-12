@@ -18,6 +18,8 @@ import os
 
 from groq import Groq
 
+from prompt_library import AIPQ_EVAL_JUDGE
+
 _EXECUTOR_MODEL = "llama-3.3-70b-versatile"
 
 
@@ -85,10 +87,15 @@ def _build_groq_deep_eval_model_cls():
             return _groq_client()
 
         def generate(self, prompt: str) -> str:
+            # Temperature/max_tokens sourced from prompt_library.AIPQ_EVAL_JUDGE
+            # rather than hardcoded — GEval builds its own judging instructions
+            # from a `criteria` string, so only these two config values (not
+            # AIPQ_EVAL_JUDGE.system) apply to this judge.
             resp = self.model.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0,
+                temperature=AIPQ_EVAL_JUDGE.temperature,
+                max_tokens=AIPQ_EVAL_JUDGE.max_tokens,
             )
             return resp.choices[0].message.content or ""
 
