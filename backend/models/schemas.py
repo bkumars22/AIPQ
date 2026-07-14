@@ -113,6 +113,33 @@ class CurrentVersionResponse(BaseModel):
     status: str
 
 
+# ── BCT (github.com/bkumars22/bct-framework) integration ───────────────────
+
+class BCTResultRequest(BaseModel):
+    source_system: str = Field(..., min_length=1, max_length=50)  # e.g. "qaip", "zentravix"
+    contract_name: str = Field(..., min_length=1, max_length=255)
+    overall_compliance: float = Field(..., ge=0.0, le=1.0)
+    breaking_point: Optional[int] = None
+    result: str = Field(..., min_length=1, max_length=20)  # BCT's own "✅ PASSED" / "❌ FAILED" string
+    role_tested: Optional[str] = Field(default=None, max_length=100)  # ZENTRAVIX-specific (RBAC role)
+
+
+class BCTResultResponse(BaseModel):
+    id: int
+    prompt_id: int
+    source_system: str
+    contract_name: str
+    overall_compliance: float
+    breaking_point: Optional[int]
+    result: str
+    role_tested: Optional[str]
+    created_at: datetime
+
+
+class BCTResultListResponse(BaseModel):
+    results: list[BCTResultResponse]
+
+
 # ── Drift ─────────────────────────────────────────────────────────────────
 
 class DriftRecordRequest(BaseModel):

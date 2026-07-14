@@ -12,6 +12,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from auth.dependencies import AuthContext, get_auth_context
 from config import ai_engine_url
 from models.schemas import (
+    BCTResultListResponse,
+    BCTResultRequest,
+    BCTResultResponse,
     CurrentVersionResponse,
     PromptRegisterRequest,
     PromptRegisterResponse,
@@ -287,6 +290,70 @@ async def get_prompt_portability(
     except httpx.HTTPError as exc:
         logger.warning("ai-engine unreachable for /analyze/portability (prompt %d): %s", prompt_id, exc)
         return {"prompt_id": prompt_id, "scores": [], "interpretation": "ai-engine unreachable"}
+
+
+@router.post("/{prompt_id}/bct-result", response_model=BCTResultResponse, status_code=status.HTTP_201_CREATED)
+async def create_bct_result(
+    prompt_id: int,
+    payload: BCTResultRequest,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """
+    Records a behavioral-contract verification result pushed by an
+    external BCT integration adapter (e.g. bct-framework's QAIPAdapter or
+    ZENTRAVIXAdapter) — a best-effort push from BCT's side, so this
+    endpoint just needs to exist and authenticate correctly; BCT itself
+    already treats a failed push as non-fatal to its own verification result.
+    """
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO bct_results
+                (prompt_id, source_system, contract_name, overall_compliance,
+                 breaking_point, result, role_tested)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, prompt_id, source_system, contract_name, overall_compliance,
+                      breaking_point, result, role_tested, created_at
+            """,
+            prompt_id, payload.source_system, payload.contract_name, payload.overall_compliance,
+            payload.breaking_point, payload.result, payload.role_tested,
+        )
+
+    return BCTResultResponse(**dict(row))
+
+
+@router.get("/{prompt_id}/bct-results", response_model=BCTResultListResponse)
+async def list_bct_results(
+    prompt_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+        rows = await conn.fetch(
+            """
+            SELECT id, prompt_id, source_system, contract_name, overall_compliance,
+                   breaking_point, result, role_tested, created_at
+            FROM bct_results
+            WHERE prompt_id = $1
+            ORDER BY created_at DESC
+            """,
+            prompt_id,
+        )
+
+    return BCTResultListResponse(results=[BCTResultResponse(**dict(r)) for r in rows])
 
 
 @router.get("/{prompt_id}/current", response_model=CurrentVersionResponse)
