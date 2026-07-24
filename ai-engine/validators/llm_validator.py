@@ -130,26 +130,33 @@ class LLMValidator:
                 retrieval_context=context or None, context=context or None,
             )
 
+            # a_measure(), not measure(): this method runs inside FastAPI/uvloop's
+            # already-running event loop, and deepeval's synchronous measure()
+            # calls nest_asyncio.apply() internally to patch that loop so it can
+            # run its own async work — which nest_asyncio cannot do to a uvloop
+            # loop ("Can't patch loop of type uvloop.Loop"), only to the stdlib
+            # asyncio loop. a_measure() is deepeval's own async entry point and
+            # sidesteps that patch entirely.
             try:
-                compliance_judge.measure(test_case)
+                await compliance_judge.a_measure(test_case)
                 compliance_scores.append(compliance_judge.score)
             except Exception as exc:
                 logger.warning("GEval compliance failed for case %d: %s", case["id"], exc)
 
             try:
-                relevancy_metric.measure(test_case)
+                await relevancy_metric.a_measure(test_case)
                 relevancy_scores.append(relevancy_metric.score)
             except Exception as exc:
                 logger.warning("AnswerRelevancyMetric failed for case %d: %s", case["id"], exc)
 
             if context:
                 try:
-                    faithfulness_metric.measure(test_case)
+                    await faithfulness_metric.a_measure(test_case)
                     faithfulness_scores.append(faithfulness_metric.score)
                 except Exception as exc:
                     logger.warning("FaithfulnessMetric failed for case %d: %s", case["id"], exc)
                 try:
-                    hallucination_metric.measure(test_case)
+                    await hallucination_metric.a_measure(test_case)
                     hallucination_scores.append(hallucination_metric.score)
                 except Exception as exc:
                     logger.warning("HallucinationMetric failed for case %d: %s", case["id"], exc)

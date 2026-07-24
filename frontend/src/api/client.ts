@@ -1,4 +1,4 @@
-import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PORTABILITY, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_COMPLETENESS, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PORTABILITY, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -295,12 +295,15 @@ export const api = {
     DEMO_MODE ? demoDelay({ promoted_version_id: DEMO_AB_TEST_RESULTS.version_a.version_id, status: 'COMPLETED' })
       : apiPost<{ promoted_version_id: number; status: string }>(`/ab-tests/${id}/promote?version=${version}`),
 
-  // Runs all 5 completeness layers live — no demo-mode fixture, since the
-  // GH Pages build's demo data is captured from real ai-engine runs (see
-  // demoData.ts's header comment) and this feature has no such run to
-  // capture yet. Demo mode surfaces that honestly (see ProjectPrompts.tsx)
-  // instead of showing invented layer scores.
+  // Demo mode replays a real captured POST /validate/complete response
+  // (DEMO_COMPLETENESS — see demoData.ts) rather than re-running the 5
+  // live layers, which need a real backend (LLM calls, a live BCT suite,
+  // a live AIMO pipeline) that GH Pages doesn't have.
   validateComplete: (promptId: number) =>
-    DEMO_MODE ? Promise.reject(new Error('Complete Validation is not available in the demo build.'))
+    DEMO_MODE ? demoDelay(DEMO_COMPLETENESS[promptId] ?? {
+      prompt_id: promptId, version_id: null, overall_score: null, weakest_layer: null,
+      recommendation: 'No layer produced a usable score — check that a golden dataset and prompt version are configured.',
+      generated_at: new Date().toISOString(), layers: [],
+    })
       : apiPost<CompletenessReport>(`/prompts/${promptId}/validate-complete`),
 }

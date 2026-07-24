@@ -72,6 +72,12 @@ services:
       - AZURE_OPENAI_ENDPOINT
       - AZURE_OPENAI_DEPLOYMENT_NAME
       - AZURE_OPENAI_API_VERSION
+      # behavioral/production completeness layers — separate host processes,
+      # not on this compose network, so host.docker.internal not localhost
+      - BCT_BASE_URL
+      - AIMO_BASE_URL
+      - AIMO_SERVICE_TOKEN
+      - AIMO_PROMPT_PIPELINE_MAP
     ports:
       - "8002:8002"
     healthcheck:
