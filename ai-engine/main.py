@@ -26,6 +26,7 @@ from evaluators.pipeline import run_evaluation
 from predictors.causal_impact import CausalImpactAnalyzer
 from predictors.drift_predictor import PredictiveDriftEngine
 from scheduler import start_scheduler
+from validators.completeness_engine import CompletenessEngine
 from validators.portability import PromptPortabilityValidator
 from validators.statistical import StatisticalValidator, confidence_interval_95
 
@@ -285,6 +286,32 @@ async def portability(prompt_id: int):
         "portability_score": result.portability_score,
         "warning": result.warning,
         "interpretation": result.interpretation,
+    }
+
+
+@app.post("/validate/complete")
+async def validate_complete(prompt_id: int):
+    """
+    Runs all 5 completeness layers (llm_quality, rag_quality, behavioral,
+    drift, production) for a prompt's currently deployed version — see
+    validators/completeness_engine.py's module docstring for how a single
+    layer failing or being not-applicable is handled. Each layer makes its
+    own real LLM/HTTP/DB calls, so this is a slow, on-demand check (the
+    dashboard's "Complete Validation" tab), not something to poll.
+    """
+    engine = CompletenessEngine()
+    report = await engine.validate_complete(prompt_id)
+    return {
+        "prompt_id": report.prompt_id,
+        "version_id": report.version_id,
+        "overall_score": report.overall_score,
+        "weakest_layer": report.weakest_layer,
+        "recommendation": report.recommendation,
+        "generated_at": report.generated_at,
+        "layers": [
+            {"name": l.name, "status": l.status, "score": l.score, "detail": l.detail}
+            for l in report.layers
+        ],
     }
 
 

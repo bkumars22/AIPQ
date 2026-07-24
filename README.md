@@ -439,6 +439,65 @@ contributors = await predictor.identify_drift_contributors(
 
 ---
 
+## Complete Validation
+
+**The industry gap:** most "LLM eval" tooling stops at one layer — a
+deepeval/RAGAS score at release time — and calls the prompt "validated."
+That misses everything that determines whether a prompt is actually safe
+and healthy in production: does it hold up against RAGAS's retrieval-
+specific metrics when it's answering from retrieved documents, does it
+survive adversarial multi-turn pressure, is it quietly drifting off its
+own baseline, and is the pipeline it's deployed to within cost/latency/
+error budget right now. Each of those is usually a separate tool (if it's
+checked at all), run manually, with no single number that says "is this
+prompt actually done."
+
+**How AIPQ fills it:** `POST /validate/complete` runs 5 independent
+validator layers for a prompt's currently deployed version and reduces
+them to one number, one weakest link, and one recommendation:
+
+| Layer | Module | What it checks |
+|-------|--------|-----------------|
+| `llm_quality` | `validators/llm_validator.py` | deepeval's FaithfulnessMetric, AnswerRelevancyMetric, HallucinationMetric, and GEval compliance |
+| `rag_quality` | `validators/rag_validator.py` | RAGAS context_precision, context_recall, faithfulness, answer_correctness (only for golden cases with a `retrieval_context`) |
+| `behavioral` | `validators/behavioral_validator.py` | Live BCT adversarial suite (injection, data leakage, multi-turn escalation) — overall compliance + the first scenario that broke, if any |
+| `drift` | `validators/drift_validator.py` | IsolationForest anomaly check + 14-day linear-regression trend, reusing `detectors/drift_detector.py` |
+| `production` | `validators/production_validator.py` | Cost, latency, and open incidents from AIMO for this prompt's mapped pipeline |
+
+`validators/completeness_engine.py` orchestrates all 5 concurrently, turns
+each into a 0-100 score (or `NOT_APPLICABLE`/`ERROR` when a layer has
+nothing to say or genuinely fails — never a fabricated score), averages the
+layers that produced one into an overall completeness score, and names the
+weakest layer with a specific, layer-appropriate recommendation:
+
+```python
+# POST /validate/complete?prompt_id=1
+{
+  "overall_score": 79.0,
+  "weakest_layer": "production",
+  "recommendation": "Overall completeness 79/100. Weakest layer: production "
+                     "(ORANGE, score=60.0). cost_24h=$62.10 (over $50 budget); "
+                     "avg_latency=1200ms (within 3000ms budget). Cost, latency, "
+                     "or open incidents in AIMO are out of budget for this "
+                     "prompt's pipeline — this is a runtime/infra problem, not "
+                     "a prompt-quality one.",
+  "layers": [
+    {"name": "llm_quality", "status": "GREEN",  "score": 90.0, "detail": "..."},
+    {"name": "rag_quality", "status": "NOT_APPLICABLE", "score": null, "detail": "No golden case has a retrieval_context configured."},
+    {"name": "behavioral",  "status": "GREEN",  "score": 95.0, "detail": "..."},
+    {"name": "drift",       "status": "GREEN",  "score": 70.0, "detail": "..."},
+    {"name": "production",  "status": "ORANGE", "score": 60.0, "detail": "..."}
+  ]
+}
+```
+
+The dashboard's **Complete Validation** tab (per-prompt, "Run Complete
+Validation" button — this is a slow, on-demand check, not something
+auto-refreshed) renders this as a traffic-light table with the overall
+0-100 score and the weakest-layer recommendation called out.
+
+---
+
 ##  EU AI Act Compliance
 
 AIPQ generates a complete audit trail for every prompt decision:

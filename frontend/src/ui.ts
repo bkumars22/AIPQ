@@ -34,6 +34,28 @@ export function coverageStatusColor(status: string | null | undefined): string {
   }
 }
 
+export function completenessStatusColor(status: string | null | undefined): string {
+  switch (status) {
+    case 'GREEN': return 'text-emerald-400'
+    case 'ORANGE': return 'text-amber-400'
+    case 'RED': return 'text-red-400'
+    case 'ERROR': return 'text-red-500'
+    case 'NOT_APPLICABLE': return 'text-slate-500'
+    default: return 'text-slate-400'
+  }
+}
+
+export function completenessStatusDot(status: string | null | undefined): string {
+  switch (status) {
+    case 'GREEN': return 'bg-emerald-400'
+    case 'ORANGE': return 'bg-amber-400'
+    case 'RED': return 'bg-red-400'
+    case 'ERROR': return 'bg-red-500'
+    case 'NOT_APPLICABLE': return 'bg-slate-600'
+    default: return 'bg-slate-500'
+  }
+}
+
 export function severityColor(severity: string | null | undefined): string {
   switch (severity) {
     case 'CRITICAL': return 'text-red-400'

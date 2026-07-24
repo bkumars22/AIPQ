@@ -1,8 +1,84 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { api, type VersionConfidence } from '../api/client'
-import { scoreColor, statusColor, severityColor } from '../ui'
+import { api, type CompletenessReport, type VersionConfidence } from '../api/client'
+import { completenessStatusColor, completenessStatusDot, scoreColor, statusColor, severityColor } from '../ui'
+
+const LAYER_LABELS: Record<string, string> = {
+  llm_quality: 'LLM Quality', rag_quality: 'RAG Quality', behavioral: 'Behavioral',
+  drift: 'Drift', production: 'Production',
+}
+
+function CompleteValidationPanel({ promptId }: { promptId: number }) {
+  const [report, setReport] = useState<CompletenessReport | null>(null)
+
+  const runValidation = useMutation({
+    mutationFn: () => api.validateComplete(promptId),
+    onSuccess: (result) => setReport(result),
+  })
+
+  return (
+    <div className="text-sm rounded border border-slate-700 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-semibold text-slate-200">Complete Validation</div>
+        <button
+          onClick={() => runValidation.mutate()}
+          disabled={runValidation.isPending}
+          className="px-3 py-1 rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium"
+        >
+          {runValidation.isPending ? 'Running all 5 layers…' : 'Run Complete Validation'}
+        </button>
+      </div>
+
+      {runValidation.isError && (
+        <p className="text-red-400 text-xs">{(runValidation.error as Error).message}</p>
+      )}
+
+      {report && (
+        <div className="space-y-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-slate-400">Overall completeness:</span>
+            <span className={`text-lg font-semibold ${scoreColor(report.overall_score !== null ? report.overall_score / 100 : null)}`}>
+              {report.overall_score !== null ? `${report.overall_score.toFixed(0)}/100` : 'N/A'}
+            </span>
+          </div>
+
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 text-left">
+                <th className="pr-4 pb-1">Layer</th>
+                <th className="pr-4 pb-1">Status</th>
+                <th className="pr-4 pb-1">Score</th>
+                <th className="pb-1">Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.layers.map(l => (
+                <tr key={l.name} className={`border-t border-slate-800 ${l.name === report.weakest_layer ? 'bg-slate-800/60' : ''}`}>
+                  <td className="pr-4 py-1.5 text-slate-300">{LAYER_LABELS[l.name] ?? l.name}</td>
+                  <td className="pr-4 py-1.5">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className={`inline-block w-2 h-2 rounded-full ${completenessStatusDot(l.status)}`} />
+                      <span className={completenessStatusColor(l.status)}>{l.status}</span>
+                    </span>
+                  </td>
+                  <td className="pr-4 py-1.5 text-slate-400">{l.score !== null ? l.score.toFixed(0) : '—'}</td>
+                  <td className="py-1.5 text-slate-500">{l.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {report.weakest_layer && (
+            <div className="text-amber-400 text-xs rounded bg-amber-900/20 border border-amber-800 p-2">
+              {report.recommendation}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ConfidenceCell({ vc }: { vc: VersionConfidence | undefined }) {
   if (!vc || vc.mean_score === null) return <span className="text-slate-500">—</span>
@@ -209,6 +285,8 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
           )}
         </div>
       )}
+
+      <CompleteValidationPanel promptId={promptId} />
 
       <table className="w-full text-sm">
         <thead>

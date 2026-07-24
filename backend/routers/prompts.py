@@ -292,6 +292,38 @@ async def get_prompt_portability(
         return {"prompt_id": prompt_id, "scores": [], "interpretation": "ai-engine unreachable"}
 
 
+@router.post("/{prompt_id}/validate-complete")
+async def validate_complete(
+    prompt_id: int,
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """
+    Proxies ai-engine's POST /validate/complete — runs all 5 completeness
+    layers (llm_quality, rag_quality, behavioral, drift, production), each
+    of which can make its own real LLM/HTTP calls, so this is the slowest
+    proxy in this router by a wide margin (behavioral alone runs a live BCT
+    suite pass). 240s timeout gives every layer room to finish or time out
+    on its own rather than the whole request getting killed first.
+    """
+    pool = request.app.state.pg_pool
+    async with pool.acquire() as conn:
+        prompt_row = await conn.fetchrow("SELECT project_id FROM prompts WHERE id = $1", prompt_id)
+        if prompt_row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
+        _require_own_project(auth, prompt_row["project_id"])
+
+    url = ai_engine_url()
+    try:
+        async with httpx.AsyncClient(timeout=240.0) as client:
+            resp = await client.post(f"{url}/validate/complete", params={"prompt_id": prompt_id})
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPError as exc:
+        logger.warning("ai-engine unreachable for /validate/complete (prompt %d): %s", prompt_id, exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"ai-engine unreachable: {exc}")
+
+
 @router.post("/{prompt_id}/bct-result", response_model=BCTResultResponse, status_code=status.HTTP_201_CREATED)
 async def create_bct_result(
     prompt_id: int,

@@ -210,6 +210,23 @@ export interface ABTestResults {
   recommendation: string
 }
 
+export interface CompletenessLayer {
+  name: 'llm_quality' | 'rag_quality' | 'behavioral' | 'drift' | 'production'
+  status: 'GREEN' | 'ORANGE' | 'RED' | 'NOT_APPLICABLE' | 'ERROR'
+  score: number | null
+  detail: string
+}
+
+export interface CompletenessReport {
+  prompt_id: number
+  version_id: number | null
+  overall_score: number | null
+  weakest_layer: string | null
+  recommendation: string
+  generated_at: string
+  layers: CompletenessLayer[]
+}
+
 export const api = {
   listProjects: () =>
     DEMO_MODE ? demoDelay(DEMO_PROJECTS)
@@ -277,4 +294,13 @@ export const api = {
   promoteABTest: (id: number, version: 'A' | 'B') =>
     DEMO_MODE ? demoDelay({ promoted_version_id: DEMO_AB_TEST_RESULTS.version_a.version_id, status: 'COMPLETED' })
       : apiPost<{ promoted_version_id: number; status: string }>(`/ab-tests/${id}/promote?version=${version}`),
+
+  // Runs all 5 completeness layers live — no demo-mode fixture, since the
+  // GH Pages build's demo data is captured from real ai-engine runs (see
+  // demoData.ts's header comment) and this feature has no such run to
+  // capture yet. Demo mode surfaces that honestly (see ProjectPrompts.tsx)
+  // instead of showing invented layer scores.
+  validateComplete: (promptId: number) =>
+    DEMO_MODE ? Promise.reject(new Error('Complete Validation is not available in the demo build.'))
+      : apiPost<CompletenessReport>(`/prompts/${promptId}/validate-complete`),
 }
