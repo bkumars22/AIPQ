@@ -128,7 +128,7 @@ Built and verified end-to-end against a real Postgres + Redis stack (no mocked D
 - **PromptIntelligenceAnalyzer / StatisticalValidator / PredictiveDriftEngine**: pre-evaluation coverage/complexity/similarity-to-failed analysis, post-evaluation significance testing (scipy t-test + Cohen's d), and Prophet-based quality forecasting with a real SHAP-explained drift-contributors breakdown — all tested against live data, and the predictor is wired into the 15-minute scheduler alongside reactive drift detection.
 - **Business Metrics dashboard page**: time saved, incidents prevented, rollback speed, a real per-project quality trend chart, coverage gaps, and the prediction panel — one live endpoint (`GET /metrics/business`) combining real database counts with clearly-labeled estimates (AIPQ doesn't track manual-iteration time or session volume) for the handful of figures that need one.
 
-**Not yet built**: A/B testing (schema exists, no endpoints/UI), Version Comparison / Evaluation Results / Golden Dataset Manager dashboard pages, the CLI, and the reusable GitHub Action.
+**Not yet built**: Version Comparison / Evaluation Results / Golden Dataset Manager dashboard pages. (A/B testing, the CLI, and the reusable GitHub Action are all built and documented above — `backend/routers/ab_tests.py` + `ABTestDetail.tsx` include Welch's-t-test-backed auto-promotion, not just a schema.)
 
 ---
 
