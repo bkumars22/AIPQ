@@ -8,10 +8,10 @@ import tailwindcss from '@tailwindcss/vite'
 // backend. Only the explicit `--mode ghpages` build (used by the Pages
 // workflow) should get the subpath base — the plain `vite build` Docker runs
 // must stay at '/' or its JS/CSS 404 and the page renders blank.
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: mode === 'ghpages' ? '/AIPQ/' : '/',
+  base: '/',
   server: {
     port: 3001,
   },
-}))
+})
