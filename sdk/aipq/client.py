@@ -288,6 +288,22 @@ class AIPQClient:
             },
         )
 
+    async def review(self, thread_id: str, decision: str) -> dict:
+        """
+        Resume a paused borderline-review thread with a human decision.
+        decision must be "approve" or "reject". Critical path (like
+        create_version) — a failure here should be visible, not swallowed.
+        """
+        result = await self._request(
+            "POST", f"/review/{thread_id}", critical=True, json={"decision": decision}
+        )
+        return result or {}
+
+    async def pending_reviews(self) -> list[dict]:
+        """All currently-paused borderline-review threads for this project."""
+        result = await self._request("GET", "/pending-reviews", critical=True)
+        return result.get("pending_reviews", []) if result else []
+
 
 def aipq_prompt(
     name: str,

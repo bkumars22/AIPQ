@@ -21,7 +21,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from db.migrate import run_migrations
 from db.session import create_pg_pool, create_redis_client
 from rate_limit import limiter
-from routers import ab_tests, drift, golden_cases, metrics, projects, prompts
+from routers import ab_tests, drift, golden_cases, metrics, projects, prompts, review
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aipq.backend")
@@ -72,6 +72,7 @@ app.include_router(drift.router)
 app.include_router(golden_cases.router)
 app.include_router(metrics.router)
 app.include_router(ab_tests.router)
+app.include_router(review.router)
 
 
 @app.get("/health")

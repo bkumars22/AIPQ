@@ -229,3 +229,29 @@ class ABTestResultsResponse(BaseModel):
 class ABTestPromoteResponse(BaseModel):
     promoted_version_id: int
     status: str
+
+
+# ── Human-in-the-loop borderline review ──────────────────────────────────
+
+class ReviewDecisionRequest(BaseModel):
+    decision: str  # "approve" | "reject"
+
+
+class ReviewDecisionResponse(BaseModel):
+    thread_id: str
+    final_status: str  # "DEPLOYED" | "FAILED"
+    review_status: Optional[str]
+
+
+class PendingReviewSummary(BaseModel):
+    thread_id: str
+    version_id: int
+    prompt_id: int
+    new_score: float
+    current_score: Optional[float]
+    created_at: datetime
+    timeout_at: datetime
+
+
+class PendingReviewListResponse(BaseModel):
+    pending_reviews: list[PendingReviewSummary]

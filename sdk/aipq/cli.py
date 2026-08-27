@@ -9,6 +9,9 @@ uses under the hood.
 
     aipq versions list --prompt-name aria_socratic_system
 
+    aipq review --thread-id aipq-42-107 --decision approve
+    aipq pending-reviews
+
 Credentials/connection come from AIPQ_API_KEY / AIPQ_PROJECT_ID / AIPQ_BASE_URL
 env vars (matching the SDK's own convention) unless overridden by flags.
 
@@ -102,6 +105,38 @@ async def cmd_versions_list(args: argparse.Namespace) -> int:
         await client.aclose()
 
 
+async def cmd_review(args: argparse.Namespace) -> int:
+    client = _client_from_args(args)
+    try:
+        result = await client.review(args.thread_id, args.decision)
+        print(f"Resumed: {result.get('final_status')} (review_status={result.get('review_status')})")
+        return 0
+    except AIPQError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        await client.aclose()
+
+
+async def cmd_pending_reviews(args: argparse.Namespace) -> int:
+    client = _client_from_args(args)
+    try:
+        reviews = await client.pending_reviews()
+        if not reviews:
+            print("No pending reviews.")
+            return 0
+        print(f"{'Thread ID':<28}{'New Score':<12}{'Current':<10}{'Created':<22}Timeout")
+        for r in reviews:
+            current = f"{r['current_score']:.2f}" if r.get("current_score") is not None else "—"
+            print(f"{r['thread_id']:<28}{r['new_score']:<12.2f}{current:<10}{r['created_at']:<22}{r['timeout_at']}")
+        return 0
+    except AIPQError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        await client.aclose()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aipq", description="AIPQ CLI")
     parser.add_argument("--api-key", help="overrides AIPQ_API_KEY")
@@ -122,6 +157,14 @@ def build_parser() -> argparse.ArgumentParser:
     versions_list = versions_sub.add_parser("list", help="List all versions of a prompt")
     versions_list.add_argument("--prompt-name", required=True)
     versions_list.set_defaults(func=cmd_versions_list)
+
+    review = subparsers.add_parser("review", help="Resume a paused borderline review with a human decision")
+    review.add_argument("--thread-id", required=True, dest="thread_id")
+    review.add_argument("--decision", required=True, choices=["approve", "reject"])
+    review.set_defaults(func=cmd_review)
+
+    pending_reviews = subparsers.add_parser("pending-reviews", help="List threads currently paused on a human decision")
+    pending_reviews.set_defaults(func=cmd_pending_reviews)
 
     return parser
 

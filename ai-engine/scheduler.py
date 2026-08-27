@@ -11,6 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from db import get_pool
 from detectors.drift_detector import DriftDetector, FEATURE_NAMES, RollbackEngine
+from evaluators.pipeline import sweep_timed_out_reviews
 from predictors.drift_predictor import PredictiveDriftEngine
 
 logger = logging.getLogger("aipq.scheduler")
@@ -79,10 +80,17 @@ async def run_predictions_all_deployed_versions() -> None:
             logger.exception("Prediction failed for version %d — skipping", version_id)
 
 
+async def sweep_borderline_review_timeouts() -> None:
+    timed_out = await sweep_timed_out_reviews()
+    if timed_out:
+        logger.info("Auto-rejected %d timed-out borderline review(s): %s", len(timed_out), timed_out)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
     scheduler.add_job(monitor_all_deployed_versions, "interval", minutes=15, id="aipq_drift_monitor")
     scheduler.add_job(run_predictions_all_deployed_versions, "interval", minutes=15, id="aipq_drift_predictor")
+    scheduler.add_job(sweep_borderline_review_timeouts, "interval", minutes=15, id="aipq_review_timeout_sweep")
     scheduler.start()
     logger.info("Drift monitoring + predictive scheduler started (every 15 minutes)")
     return scheduler

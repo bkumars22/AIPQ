@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from analyzers.causal import CausalAttributionAnalyzer
 from analyzers.coverage import COVERED_THRESHOLD, PromptCoverageAnalyzer
 from db import close_all, get_pool
-from evaluators.pipeline import run_evaluation
+from evaluators.pipeline import list_pending_reviews, resume_review, run_evaluation
 from predictors.causal_impact import CausalImpactAnalyzer
 from predictors.drift_predictor import PredictiveDriftEngine
 from scheduler import start_scheduler
@@ -313,6 +313,37 @@ async def validate_complete(prompt_id: int):
             for l in report.layers
         ],
     }
+
+
+class ReviewDecisionRequest(BaseModel):
+    decision: str  # "approve" | "reject"
+
+
+@app.post("/review/{thread_id}")
+async def review(thread_id: str, payload: ReviewDecisionRequest):
+    """
+    Resumes a paused borderline-review thread with a human decision.
+    thread_id alone is sufficient to resume — see resume_review()'s
+    docstring for why this survives a process restart.
+    """
+    if payload.decision not in ("approve", "reject"):
+        raise HTTPException(422, "decision must be 'approve' or 'reject'")
+    try:
+        result = await resume_review(thread_id, payload.decision)
+    except Exception as exc:
+        logger.exception("resume_review failed for thread %s", thread_id)
+        raise HTTPException(404, f"No paused review found for thread_id={thread_id!r}: {exc}") from None
+    return {
+        "thread_id": thread_id,
+        "final_status": "DEPLOYED" if result["evaluation_summary"].get("passed") else "FAILED",
+        "review_status": result.get("review_status"),
+    }
+
+
+@app.get("/pending-reviews")
+async def pending_reviews():
+    """All currently-paused threads waiting on a human decision."""
+    return {"pending_reviews": await list_pending_reviews()}
 
 
 @app.get("/health")
