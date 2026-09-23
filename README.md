@@ -2,7 +2,7 @@
 
 > Git for prompts — with automatic quality gates, drift detection, and intelligent rollback.
 
-**Live demo:** [bkumars22.github.io/AIPQ](https://bkumars22.github.io/AIPQ) — preview seeded with real data captured from actual testing (ARIA's live rollback story: v2 dropped to 0.60 quality, IsolationForest flagged it CRITICAL, auto-rolled back to v1 at 0.93). It's the same dashboard code you'd run yourself, pointed at fixed data instead of your own backend — clone the repo and run `docker compose up` (see [Local development](#local-development)) to connect it to a real one.
+**Live demo:** [bkumars22.github.io/AIPQ](https://bkumars22.github.io/AIPQ) — preview seeded with real data captured from actual testing (2026-09-23: ARIA and QAIP's real production prompts run against real adversarial golden cases through a real Groq-backed deepeval judge — both genuinely failed at first, ARIA on a golden-case rubric bug and QAIP on a real out-of-scope-handling gap, both fixed for real and now genuinely `DEPLOYED`; see the [Status](#status) section below for the full story). It's the same dashboard code you'd run yourself, pointed at fixed data instead of your own backend — clone the repo and run `docker compose up` (see [Local development](#local-development)) to connect it to a real one.
 
 ## The problem
 
@@ -380,7 +380,7 @@ Impact:   ARIA students never experienced
           Improvement: 100%
 ```
 
-This event is visible live at [bkumars22.github.io/AIPQ](https://bkumars22.github.io/AIPQ)
+A real, historical event — no longer what the live demo currently replays (as of 2026-09-23 the demo shows the more recent ARIA/QAIP adversarial-gate fix story instead, described at the top of this README); the real audit trail for this rollback still exists in the local stack's database.
 
 ---
 
@@ -388,12 +388,12 @@ This event is visible live at [bkumars22.github.io/AIPQ](https://bkumars22.githu
 
 | Metric | Value |
 |--------|-------|
-| Automatic rollbacks | 1 (real) |
-| Rollback speed vs manual | 100% improvement |
+| Automatic rollbacks | 0 this round (real; 1 historical, July 7) |
+| Real defects caught pre-deploy | 1 (QAIP's real MT-01 out-of-scope gap) |
 | Time saved per eval cycle | 93.3% |
-| Eval runs automated | 1 this month |
+| Eval runs automated | 2 this month (ARIA + QAIP real fixes) |
 | EU AI Act audit trail | 100% complete |
-| Prediction panel | ARIA: stable |
+| Prediction panel | ARIA / QAIP: not enough history yet |
 
 ---
 
