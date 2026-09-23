@@ -130,6 +130,15 @@ Built and verified end-to-end against a real Postgres + Redis stack (no mocked D
 
 **Not yet built**: Version Comparison / Evaluation Results / Golden Dataset Manager dashboard pages. (A/B testing, the CLI, and the reusable GitHub Action are all built and documented above — `backend/routers/ab_tests.py` + `ABTestDetail.tsx` include Welch's-t-test-backed auto-promotion, not just a schema.)
 
+### 2026-09-23 — LLM-judge scoring fixed; real quality gate now catches real defects
+
+A full local run against real ARIA and QAIP production prompts (via the real SDK, real backend, real Groq calls) surfaced and fixed two real bugs in `ai-engine/llm_judge.py`'s `deepeval`/Groq adapter that had every evaluation dying before a score was ever computed:
+
+- **Unparsed judge output**: deepeval's JSON parser does a bare `json.loads` with no markdown-fence stripping or preamble tolerance — a `_extract_json_object()` helper now strips a ` ```json ` fence and extracts the balanced `{...}` object before handing text back to deepeval.
+- **Reasoning-model token starvation**: `openai/gpt-oss-120b` is a reasoning model — Groq bills chain-of-thought tokens against the same `max_tokens` budget as the visible answer, and the judge's configured 200-token budget left nothing for the actual JSON reply once the first fix was in place. Fixed with `reasoning_effort="low"` plus a 1024-token floor, scoped to just this call.
+
+With both fixed, quality scores now compute for real — confirmed via the live dashboard and the backend API, not just logs. That real scoring immediately surfaced a real, legitimate finding: **ARIA's `aria_socratic_system` scores 0.39 against a 0.90 threshold, and QAIP's `qaip_defect_explanation` scores 0.06 against a 0.85 threshold**, both against real adversarial/edge-case golden data (QAIP's case is the already-known MT-01 out-of-scope-roleplay defect). Neither threshold nor golden case was changed to make these numbers look better — the gate is correctly blocking both from deploying. Full writeup: [AIPQ Deployment Report — Scoring Fix](https://claude.ai/code/artifact/d6c77998-ffce-4280-aba3-5b26231af5b4).
+
 ---
 
 ##  Backend Integration Architecture
