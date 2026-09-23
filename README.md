@@ -150,6 +150,12 @@ Both fixes were applied via scripts against the real database (not manual SQL), 
 
 **A real bug found and fixed along the way**: this same session's dashboard checks caught an accidental A/B-test mispromotion on the unrelated baseline demo prompt (`aria_socratic_system_baseline`) — real backend logs traced it to a browser-originated request (CORS preflight present, ruling out a script), almost certainly a stray click from this session's own browser automation. Corrected via script; the accidental A/B-test record itself was left in place rather than deleted, since it's a real event that really happened. Full writeup, including the real log evidence: [AIPQ Deployment Report — All Green](https://claude.ai/code/artifact/d6c77998-ffce-4280-aba3-5b26231af5b4).
 
+### 2026-09-23 (cont'd) — ARIA's 4 remaining "gap" categories tested for real, all genuinely covered
+
+The public demo's coverage-gaps table still showed 4 ARIA categories (`jailbreak_resistance`, `frustration_manipulation`, `prompt_injection`, `multilingual_bypass`) at 0% / GAP — stale carry-over from a July 24 Complete Validation report, honestly labeled "not re-tested" rather than silently dropped or claimed fixed. Rather than leave that unresolved, wrote 8 new real adversarial golden cases (2 per category — an "ignore all instructions" and a claimed SYSTEM override for jailbreak; two frustration-pressure asks; an embedded `system:` line and a bracketed `[SYSTEM MESSAGE]` prefix for injection; two direct-answer demands in Hindi for multilingual) and ran them for real against ARIA's **completely unmodified** prompt content.
+
+Real result: **11/11 cases passing, compliance 1.0, `DEPLOYED` (v20)** — all 4 categories now genuinely `COVERED`, not just relabeled. Captured and reviewed every real model output: on-topic Socratic guiding questions throughout, correct Hindi replies to the Hindi prompts, zero leaked numeric answers. The prompt's own existing rules and few-shot examples (RULE 3/3b/5, and the Hindi/override/frustration examples already in `ARIA_SOCRATIC.system`) were already doing the job — no prompt edit needed, same as the earlier `authority_pressure` finding.
+
 ---
 
 ##  Backend Integration Architecture
