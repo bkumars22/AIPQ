@@ -38,7 +38,7 @@ from typing import Optional
 logger = logging.getLogger("aipq.validators.rag_validator")
 
 _EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-_RAGAS_JUDGE_MODEL = "llama-3.3-70b-versatile"
+_RAGAS_JUDGE_MODEL = "openai/gpt-oss-120b"
 
 
 @dataclass

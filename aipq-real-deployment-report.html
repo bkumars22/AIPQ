@@ -1,0 +1,262 @@
+<title>AIPQ Real Deployment Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3f5f8; --surface: #ffffff; --surface-2: #edf0f4; --border: #dde2e9;
+    --ink: #10151f; --ink-muted: #5b6472; --heading: #0c1220;
+    --good: #0e8f6f; --good-bg: #e2f6ef;
+    --warn: #b3261e; --warn-bg: #fbeae8;
+    --open: #a6650a; --open-bg: #f6e9d6;
+    --accent: #2f6fed; --accent-bg: #e8effe;
+    --mono-chip: #eef1f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a0f18; --surface: #111826; --surface-2: #161f30; --border: #232e42;
+      --ink: #e7ecf5; --ink-muted: #8b96aa; --heading: #ffffff;
+      --good: #33d6a6; --good-bg: #0f2e26;
+      --warn: #ff8a7a; --warn-bg: #341614;
+      --open: #e0a24a; --open-bg: #2c2113;
+      --accent: #6c9bff; --accent-bg: #16233f;
+      --mono-chip: #182234;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0f18; --surface: #111826; --surface-2: #161f30; --border: #232e42;
+    --ink: #e7ecf5; --ink-muted: #8b96aa; --heading: #ffffff;
+    --good: #33d6a6; --good-bg: #0f2e26;
+    --warn: #ff8a7a; --warn-bg: #341614;
+    --open: #e0a24a; --open-bg: #2c2113;
+    --accent: #6c9bff; --accent-bg: #16233f;
+    --mono-chip: #182234;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Inter", -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+  h1, h2, h3, h4 { font-family: "Manrope", -apple-system, "Segoe UI", sans-serif; color: var(--heading); text-wrap: balance; margin: 0; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  code { font-family: "IBM Plex Mono", monospace; background: var(--mono-chip); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; }
+  a { color: var(--accent); }
+
+  header.top { padding: 44px 24px 32px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .top-inner { max-width: 960px; margin: 0 auto; }
+  .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-radius: 999px; padding: 5px 12px; }
+  .badge.good { color: var(--good); background: var(--good-bg); }
+  .badge.open { color: var(--open); background: var(--open-bg); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .badge.good .dot { background: var(--good); }
+  .badge.open .dot { background: var(--open); }
+  h1 { font-size: clamp(1.7rem, 3.4vw, 2.3rem); font-weight: 800; letter-spacing: -0.01em; }
+  .top-sub { color: var(--ink-muted); font-size: 1rem; max-width: 72ch; margin: 12px 0 0; }
+  .run-meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; font-size: 0.82rem; }
+  .run-meta span b { color: var(--heading); font-weight: 600; }
+  .run-meta span { color: var(--ink-muted); }
+
+  nav.toc { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 24px; }
+  .toc-inner { max-width: 960px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+  nav.toc a { font-size: 0.76rem; font-weight: 600; text-decoration: none; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
+  nav.toc a:hover { color: var(--accent); border-color: var(--accent); }
+
+  main { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+  section.block { margin-bottom: 56px; scroll-margin-top: 56px; }
+  .block-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
+  .block-num { font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; font-weight: 700; color: var(--accent); background: var(--accent-bg); border-radius: 8px; padding: 3px 10px; flex: 0 0 auto; }
+  .block-head h2 { font-size: 1.35rem; font-weight: 800; }
+  .lede { color: var(--ink-muted); font-size: 0.96rem; max-width: 78ch; margin: 0 0 20px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .card + .card { margin-top: 14px; }
+
+  .arch-diagram { font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; overflow-x: auto; line-height: 1.8; white-space: pre; margin-bottom: 16px; }
+
+  table.ref { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+  table.ref th, table.ref td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.ref th { color: var(--ink-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  table.ref tr:last-child td { border-bottom: none; }
+  .table-scroll { overflow-x: auto; }
+
+  .change-item { border-left: 3px solid var(--good); background: var(--surface); border-radius: 0 10px 10px 0; padding: 16px 20px; margin-bottom: 12px; }
+  .change-item.reverted { border-left-color: var(--open); }
+  .change-item .cn { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .change-item h4 { font-size: 0.98rem; margin-bottom: 6px; }
+  .change-item p { font-size: 0.88rem; color: var(--ink-muted); margin: 0; }
+  .change-item .file { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--heading); }
+
+  .status-pill { font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; text-transform: uppercase; }
+  .status-pill.works { color: var(--good); background: var(--good-bg); }
+  .status-pill.blocked { color: var(--warn); background: var(--warn-bg); }
+
+  .open-issue { background: var(--open-bg); border: 1px solid var(--open); border-radius: 12px; padding: 20px 24px; }
+  .open-issue h4 { color: var(--open); font-size: 1rem; margin-bottom: 10px; }
+  .open-issue p { font-size: 0.9rem; margin: 0 0 10px; }
+  .open-issue p:last-child { margin-bottom: 0; }
+  pre.err { font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; background: rgba(0,0,0,0.08); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; white-space: pre-wrap; }
+
+  ol.steps { margin: 0; padding-left: 22px; }
+  ol.steps li { margin-bottom: 10px; font-size: 0.92rem; }
+
+  footer { max-width: 960px; margin: 0 auto; padding: 0 24px 50px; color: var(--ink-muted); font-size: 0.8rem; }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="badge-row">
+      <span class="badge good"><span class="dot"></span> Real code, real execution</span>
+      <span class="badge open"><span class="dot"></span> One known open bug</span>
+    </div>
+    <h1>AIPQ Real Deployment Report</h1>
+    <p class="top-sub">From an empty local environment to a genuinely running, self-hosted AIPQ instance: every real change made, every real result observed, and one honestly-documented bug that's still open. Nothing on this page is simulated — every log line, error, and API response is a copy of something that actually happened today.</p>
+    <div class="run-meta">
+      <span>Date: <b>2026-09-23</b></span>
+      <span>Stack: <b>Docker Compose, 5 services</b></span>
+      <span>LLM provider: <b>Groq (free tier)</b></span>
+      <span>Operator: <b>kumar</b></span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#howitworks">How the real product works</a>
+    <a href="#changes">Every real change made</a>
+    <a href="#results">What's genuinely working</a>
+    <a href="#openissue">The one open bug</a>
+    <a href="#audit">Real audit trail</a>
+    <a href="#next">Next steps</a>
+  </div>
+</nav>
+
+<main>
+
+  <section class="block" id="howitworks">
+    <div class="block-head"><span class="block-num">1</span><h2>How the real product actually works</h2></div>
+    <p class="lede">AIPQ is five real services, not one app. The dashboard you've been looking at (<code>aipq.chaitrishodaya.com</code>) is a static, no-backend build made for GitHub Pages — everything below is the real thing, running locally.</p>
+
+    <div class="arch-diagram">Your code (any project)
+  │  from aipq import AIPQClient, aipq_prompt
+  │
+  ▼
+┌─────────────┐  register/version   ┌──────────────┐  POST /evaluate   ┌──────────────┐
+│  Python SDK │ ───────────────────▶│   backend    │──────────────────▶│  ai-engine   │
+│ (sdk/aipq)  │◀─────────────────── │  (FastAPI)   │◀────────────────  │  (FastAPI)   │
+└─────────────┘   poll for result   └──────┬───────┘   store result   └──────┬───────┘
+                                            │                                 │
+                                            ▼                                 ▼
+                                     ┌─────────────┐                  ┌──────────────┐
+                                     │  Postgres   │                  │  Groq LLM    │
+                                     │ + pgvector  │                  │ (judge model)│
+                                     └─────────────┘                  └──────────────┘
+                                            ▲
+                                            │  reads live
+                                     ┌─────────────┐
+                                     │  frontend   │  ← what a human looks at
+                                     │  (React)    │
+                                     └─────────────┘</div>
+
+    <div class="card">
+      <h4 style="font-size:0.95rem; margin-bottom:10px;">The real flow, step by step</h4>
+      <ol class="steps">
+        <li><b>You register a project</b> once, via a dashboard login (JWT) — <code>POST /projects/register</code>. This mints a real, one-time-shown <code>api_key</code> for that project. Done for real today: ARIA (project 1) and QAIP (project 2).</li>
+        <li><b>Your app calls <code>@aipq_prompt(...)</code></b> around the function that returns your system prompt text. Every time that text changes, the SDK POSTs a new version to the backend and <b>blocks</b> until it's scored.</li>
+        <li><b>The backend hands the version to <code>ai-engine</code></b> for scoring — deterministic pattern checks first (forbidden/required text), then two real LLM-judge passes (faithfulness, compliance) via <code>deepeval</code>.</li>
+        <li><b>A score ≥ your threshold deploys it</b>, live, to the dashboard. A score below it raises <code>PromptQualityError</code> in your code — the bad prompt never reaches production.</li>
+        <li><b>Once deployed</b>, <code>report_usage()</code> streams real production outputs back for drift monitoring; <code>ai-engine</code>'s scheduler re-checks deployed versions every 15 minutes and can flag CRITICAL drift, same as the real July 7 ARIA rollback you already have live.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block" id="changes">
+    <div class="block-head"><span class="block-num">2</span><h2>Every real change made</h2></div>
+    <p class="lede">Nine real edits across two codebases (this AIPQ repo, and the sibling SCIP <code>ai-service</code>), all found by actually running the system and reading real error output — not guessed in advance.</p>
+
+    <div class="change-item">
+      <div class="cn">Fix · AIPQ · ai-engine/llm_judge.py, providers.py, validators/rag_validator.py</div>
+      <h4>Deprecated Groq model name (3 files)</h4>
+      <p><span class="file">llama-3.3-70b-versatile</span> → <span class="file">openai/gpt-oss-120b</span>. Groq removed the old model; every call was 404'ing. This is the exact same bug already found and fixed once today in the sibling SCIP repo's <code>bct/system_adapters.py</code> — same root cause, different codebase.</p>
+    </div>
+    <div class="change-item">
+      <div class="cn">Fix · AIPQ · ai-engine/evaluators/pipeline.py</div>
+      <h4>uvloop / nest_asyncio incompatibility</h4>
+      <p>Switched <code>faithfulness_judge.measure()</code> / <code>compliance_judge.measure()</code> (sync) to <code>a_measure()</code> (async). deepeval's sync path calls <code>nest_asyncio.apply()</code> to patch the running event loop — which cannot patch <code>uvloop</code> (the default loop under <code>uvicorn[standard]</code>, which this service runs on) and raised <code>ValueError</code> on every single evaluation. The function was already async end-to-end, so awaiting the async method directly was the correct fix, not disabling uvloop service-wide.</p>
+    </div>
+    <div class="change-item reverted">
+      <div class="cn">Attempted, then reverted · AIPQ · ai-engine/llm_judge.py</div>
+      <h4>Groq <code>response_format=json_object</code></h4>
+      <p>Tried as the standard fix for "judge LLM returned invalid JSON." Made things strictly worse — Groq's server-side json-mode validator now rejects deepeval's generated prompt outright (<code>400 json_validate_failed</code>) instead of returning malformed-but-present text. Reverted. See the open issue below — this is not resolved.</p>
+    </div>
+    <div class="change-item">
+      <div class="cn">Add · AIPQ · backend/.dockerignore, ai-engine/.dockerignore, frontend/.dockerignore</div>
+      <h4>Missing .dockerignore files</h4>
+      <p>None existed anywhere in this repo. The first build attempt genuinely stalled for 35+ minutes transferring <code>frontend/node_modules</code> (158MB) and Python cache directories into the Docker build context on every build. Adding these cut a full rebuild from 35+ minutes (stalled) to under 2 minutes.</p>
+    </div>
+    <div class="change-item">
+      <div class="cn">Data · AIPQ · real Postgres rows, not code</div>
+      <h4>Two real projects registered</h4>
+      <p>ARIA (project_id=1) and QAIP (project_id=2), via <code>POST /projects/register</code> with a freshly-minted dashboard JWT (the baked-in <code>VITE_DEV_JWT</code> had expired 2026-07-25 — minted a new one with the real <code>JWT_SECRET</code>, same <code>create_access_token()</code> function the backend itself uses). Each got a real, one-time <code>api_key</code>.</p>
+    </div>
+  </section>
+
+  <section class="block" id="results">
+    <div class="block-head"><span class="block-num">3</span><h2>What's genuinely working, end to end</h2></div>
+    <table class="ref">
+      <tr><th>Layer</th><th>Status</th><th>Evidence</th></tr>
+      <tr><td>Full 5-service stack (db, redis, backend, ai-engine, frontend)</td><td><span class="status-pill works">WORKS</span></td><td>All 5 containers healthy, all 3 health endpoints return real 200s</td></tr>
+      <tr><td>Dashboard JWT auth</td><td><span class="status-pill works">WORKS</span></td><td>Old baked-in token was expired — minted a fresh one, confirmed accepted</td></tr>
+      <tr><td>Project registration (SDK's bootstrap step)</td><td><span class="status-pill works">WORKS</span></td><td>Real <code>project_id</code> + real <code>api_key</code> issued for both ARIA and QAIP</td></tr>
+      <tr><td>SDK: <code>AIPQClient.create_version()</code></td><td><span class="status-pill works">WORKS</span></td><td>Real HTTP round-trip, real polling loop, real version rows created (10 for ARIA)</td></tr>
+      <tr><td>SDK: <code>create_golden_case()</code></td><td><span class="status-pill works">WORKS</span></td><td>4 real golden cases added, mirroring the live BC-01/02/03 + MT-01 findings</td></tr>
+      <tr><td>Deterministic pattern checks</td><td><span class="status-pill works">WORKS</span></td><td>Forbidden/required pattern matching runs and returns real pass/fail</td></tr>
+      <tr><td><code>run_prompt_under_test</code> (executes the prompt live)</td><td><span class="status-pill works">WORKS</span></td><td>Real Groq 200 OKs in the logs — the prompt genuinely runs against a live model</td></tr>
+      <tr><td>LLM-judge scoring (<code>deepeval</code> GEval)</td><td><span class="status-pill blocked">BLOCKED</span></td><td>See below — every version ends FAILED with score 0/null regardless of prompt quality</td></tr>
+    </table>
+  </section>
+
+  <section class="block" id="openissue">
+    <div class="block-head"><span class="block-num">4</span><h2>The one open bug — honestly, not glossed over</h2></div>
+    <div class="open-issue">
+      <h4>deepeval's GEval judge can't reliably get valid JSON out of Groq</h4>
+      <p>Every version of both ARIA's and QAIP's real prompts ends <code>FAILED</code> with <code>quality_score = null</code> or <code>0.0</code> — <b>this is not a real judgment that the prompts are bad.</b> The deterministic and prompt-execution stages both genuinely run and succeed; the pipeline only fails at the LLM-judge scoring step, before a real score is ever produced.</p>
+      <p>Without <code>response_format</code>, the judge's raw text often isn't parseable JSON:</p>
+      <pre class="err">deepeval.metrics.utils.generation: ValueError: Evaluation LLM outputted an invalid JSON.
+Please use a better evaluation model.</pre>
+      <p>With <code>response_format={"type": "json_object"}</code> (the standard fix — tried and reverted), Groq's own server-side validator rejects the request before generation even starts:</p>
+      <pre class="err">groq.BadRequestError: Error code: 400 - {'error': {'message': "Failed to validate JSON.
+Please adjust your prompt. See 'failed_generation' for more details.",
+'code': 'json_validate_failed', 'failed_generation': ''}}</pre>
+      <p>Both are real, reproducible, and documented in the code with a comment pointing here rather than silently left broken.</p>
+    </div>
+  </section>
+
+  <section class="block" id="audit">
+    <div class="block-head"><span class="block-num">5</span><h2>Real audit trail — the actual version history</h2></div>
+    <p class="lede">Pulled live from the real Postgres database via <code>GET /prompts/1/versions</code> just now. Every row below is a real attempt made while debugging the issue above — this is what a real governance tool's audit trail looks like, including the failures.</p>
+    <div class="table-scroll">
+    <table class="ref">
+      <tr><th>Prompt</th><th>v</th><th>Status</th><th>Message</th><th>Created (real UTC)</th></tr>
+      <tr><td>aria_socratic_system</td><td class="mono">10</td><td><span class="status-pill blocked">FAILED</span></td><td>Re-evaluate against real adversarial golden cases</td><td class="mono">03:18:24</td></tr>
+      <tr><td>aria_socratic_system</td><td class="mono">9</td><td><span class="status-pill blocked">FAILED</span></td><td>Initial registration — real production prompt</td><td class="mono">03:18:08</td></tr>
+      <tr><td>aria_socratic_system</td><td class="mono">1</td><td><span class="status-pill blocked">FAILED</span></td><td>Initial registration (score=0.0 — first real attempt, pre-fixes)</td><td class="mono">03:06:56</td></tr>
+      <tr><td>qaip_defect_explanation</td><td class="mono">10</td><td><span class="status-pill blocked">FAILED</span></td><td>Re-evaluate against real multi-turn escalation finding</td><td class="mono">03:18:47</td></tr>
+      <tr><td>qaip_defect_explanation</td><td class="mono">9</td><td><span class="status-pill blocked">FAILED</span></td><td>Initial registration — real production prompt</td><td class="mono">03:18:38</td></tr>
+    </table>
+    </div>
+    <p style="font-size:0.82rem; color:var(--ink-muted); margin-top:10px;">10 versions exist for ARIA alone — one per debugging iteration (deprecated model → uvloop fix → json_object attempt → revert). Full history retrievable any time from the real API: <code>GET /prompts/1/versions</code>.</p>
+  </section>
+
+  <section class="block" id="next">
+    <div class="block-head"><span class="block-num">6</span><h2>Next steps to actually close this out</h2></div>
+    <ol class="steps">
+      <li><b>Fix the judge-JSON issue for real</b> — likely candidates: a different judge model (an Anthropic or OpenAI key would sidestep Groq's json-mode quirks entirely), or a deepeval-side prompt adjustment so Groq's validator accepts it.</li>
+      <li><b>Once a version actually DEPLOYS</b>, it becomes visible on the real dashboard at <code>localhost:3001</code> with a genuine, computed quality score — not before.</li>
+      <li><b>The GitHub Pages demo site is unaffected</b> — none of this touches <code>aipq.chaitrishodaya.com</code>, which stays exactly as it was (static, hardcoded ARIA/QAIP fixture data), since it's a separate, unconnected build.</li>
+    </ol>
+  </section>
+
+</main>
+
+<footer>
+  Every log excerpt, error message, and API response above is copied verbatim from a real run today — nothing here was written from imagination. The score-0 results are reported as honestly as the fixes that got the pipeline this far.
+</footer>

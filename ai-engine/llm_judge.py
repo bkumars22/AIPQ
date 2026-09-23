@@ -15,12 +15,57 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 
 from groq import Groq
 
 from prompt_library import AIPQ_EVAL_JUDGE
 
-_EXECUTOR_MODEL = "llama-3.3-70b-versatile"
+_EXECUTOR_MODEL = "openai/gpt-oss-120b"
+
+_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE | re.MULTILINE)
+
+
+def _extract_json_object(text: str) -> str:
+    """
+    Best-effort extraction of the single JSON object a GEval judge prompt
+    asked for, out of whatever surrounding text the model actually returned.
+
+    Two real, observed failure modes this fixes (found live, 2026-09-23,
+    running deepeval's GEval against Groq's openai/gpt-oss-120b — see
+    GroqDeepEvalModel.generate's docstring for the two things that were
+    tried and didn't work before this): a ```json ... ``` markdown fence
+    around otherwise-valid JSON, and/or a short preamble or trailing
+    sentence around it (e.g. "Here is the evaluation: {...}"). Deepeval's
+    own parser (trimAndLoadJson) only strips trailing commas — it does a
+    bare json.loads on whatever string generate() returns, so either of
+    these was enough to fail every single evaluation at score 0, even
+    though the judgment itself inside the braces was usually fine.
+
+    Falls back to returning the input unchanged if no `{...}` object is
+    found at all, so a genuinely empty/broken response still reaches
+    deepeval's own error path (and its message) rather than being
+    swallowed here.
+    """
+    stripped = _FENCE_RE.sub("", text.strip()).strip()
+
+    start = stripped.find("{")
+    if start == -1:
+        return stripped
+
+    depth = 0
+    for i, ch in enumerate(stripped[start:], start=start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return stripped[start : i + 1]
+
+    # Unbalanced (e.g. truncated by max_tokens) — return from the first
+    # brace onward anyway; deepeval's own JSONDecodeError is more useful
+    # here than silently returning the pre-fence-strip original.
+    return stripped[start:]
 
 
 def _groq_client() -> Groq:
@@ -87,17 +132,54 @@ def _build_groq_deep_eval_model_cls():
             return _groq_client()
 
         def generate(self, prompt: str) -> str:
-            # Temperature/max_tokens sourced from prompt_library.AIPQ_EVAL_JUDGE
-            # rather than hardcoded — GEval builds its own judging instructions
-            # from a `criteria` string, so only these two config values (not
-            # AIPQ_EVAL_JUDGE.system) apply to this judge.
+            # Temperature sourced from prompt_library.AIPQ_EVAL_JUDGE rather
+            # than hardcoded — GEval builds its own judging instructions from
+            # a `criteria` string, so only that config value (not
+            # AIPQ_EVAL_JUDGE.system/max_tokens — see below) applies here.
+            #
+            # RESOLVED (2026-09-23) — see llm_judge.py's _extract_json_object
+            # docstring for the fence/preamble fix. Two dead ends tried
+            # first for THAT bug, kept here as the record of what didn't
+            # work:
+            #  1. No format constraint at all: the model's raw text often
+            #     wraps its JSON in markdown fences or a short preamble even
+            #     though GEval's own template explicitly says "Only return
+            #     valid JSON" — deepeval's parser does a bare json.loads with
+            #     no fence-stripping, so it raised "outputted an invalid
+            #     JSON" on exactly those responses.
+            #  2. Groq's response_format={"type":"json_object"}: rejected the
+            #     request outright (400 json_validate_failed, empty
+            #     failed_generation) for this model/prompt combination —
+            #     strictly worse than (1), since it failed before generation
+            #     even started.
+            # Fix: leave the request unconstrained (avoids (2)'s outright
+            # rejection) and do our own robust extraction of the JSON object
+            # from the response text (fixes (1)) before handing it back to
+            # deepeval's parser.
+            #
+            # SECOND, SEPARATE bug found after (1)/(2) above: even with the
+            # extraction fix, generate() was returning "" — json.loads then
+            # failed immediately with "Expecting value: line 1 column 1
+            # (char 0)". Root cause: openai/gpt-oss-120b is a reasoning
+            # model — Groq bills its internal chain-of-thought tokens
+            # against the same max_tokens budget as the visible answer.
+            # AIPQ_EVAL_JUDGE.max_tokens=200 (prompt_library.py — not
+            # touched here, that config is shared with non-reasoning-model
+            # judges elsewhere) is nowhere near enough for gpt-oss-120b's
+            # default ("medium") reasoning effort, so the whole budget was
+            # spent thinking and zero tokens were left for the JSON answer
+            # itself, every single call. Fixed with two changes specific to
+            # this Groq/reasoning-model call: reasoning_effort="low" (uses
+            # meaningfully fewer thinking tokens) and a higher token floor
+            # so the visible JSON answer has room to be emitted even so.
             resp = self.model.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=AIPQ_EVAL_JUDGE.temperature,
-                max_tokens=AIPQ_EVAL_JUDGE.max_tokens,
+                max_tokens=max(AIPQ_EVAL_JUDGE.max_tokens, 1024),
+                reasoning_effort="low",
             )
-            return resp.choices[0].message.content or ""
+            return _extract_json_object(resp.choices[0].message.content or "")
 
         async def a_generate(self, prompt: str) -> str:
             return await asyncio.to_thread(self.generate, prompt)

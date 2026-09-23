@@ -197,8 +197,16 @@ async def run_deepeval_scoring(state: EvalState) -> EvalState:
                 actual_output=det["output"],
                 expected_output=case["expected_behavior"],
             )
-            faithfulness_judge.measure(test_case)
-            compliance_judge.measure(test_case)
+            # a_measure (async), not measure (sync): GEval.measure() internally
+            # calls nest_asyncio.apply() to patch the running event loop for its
+            # own sync-over-async plumbing — nest_asyncio cannot patch a uvloop
+            # event loop (the default under uvicorn[standard], which this
+            # service runs on), and raises ValueError instead. This coroutine
+            # is already async end-to-end (awaits redis above), so awaiting
+            # a_measure directly avoids the nested-loop patch entirely rather
+            # than needing to disable uvloop for the whole service.
+            await faithfulness_judge.a_measure(test_case)
+            await compliance_judge.a_measure(test_case)
 
             entry = {
                 "case_id": case["id"],

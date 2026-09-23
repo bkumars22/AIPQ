@@ -19,7 +19,7 @@ import os
 
 SUPPORTED_PROVIDERS = ("groq", "azure", "anthropic")
 
-_GROQ_MODEL = "llama-3.3-70b-versatile"
+_GROQ_MODEL = "openai/gpt-oss-120b"
 _ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
 DEFAULT_TEMPERATURE = 0.3
 DEFAULT_MAX_TOKENS = 1024

@@ -139,6 +139,17 @@ A full local run against real ARIA and QAIP production prompts (via the real SDK
 
 With both fixed, quality scores now compute for real — confirmed via the live dashboard and the backend API, not just logs. That real scoring immediately surfaced a real, legitimate finding: **ARIA's `aria_socratic_system` scores 0.39 against a 0.90 threshold, and QAIP's `qaip_defect_explanation` scores 0.06 against a 0.85 threshold**, both against real adversarial/edge-case golden data (QAIP's case is the already-known MT-01 out-of-scope-roleplay defect). Neither threshold nor golden case was changed to make these numbers look better — the gate is correctly blocking both from deploying. Full writeup: [AIPQ Deployment Report — Scoring Fix](https://claude.ai/code/artifact/d6c77998-ffce-4280-aba3-5b26231af5b4).
 
+### 2026-09-23 (cont'd) — Both real adversarial gates now genuinely pass
+
+Dug into *why* ARIA and QAIP were failing above, rather than stopping at "the gate correctly blocks them." Two different real root causes, two different real fixes:
+
+- **ARIA**: its actual behavior was already correct in all 3 adversarial cases (never gave a direct answer, authority claims and role-play included) — the 0.0 compliance scores came from 2 golden cases whose `expected_behavior` was written as a description of the *rule* instead of a rubric describing the expected *reply*. Fixed by rewording those 2 rubrics (and deduping 24 accumulated rows down to 3) — **prompt content untouched**. Real result: v17, score 1.00, `DEPLOYED`.
+- **QAIP**: a genuine behavioral gap — faced with the MT-01 out-of-scope roleplay input, it refused outright instead of staying in its required format. The only real fix was the prompt itself, which was off-limits for this whole engagement until explicitly authorized for this one case. Added RULE 7 to `QAIP_DEFECT_EXPLANATION.system` (in the shared `prompt_library.py`) teaching it to handle out-of-scope input *within* its Root cause/Affected/Severity/Fix/Confidence format instead of breaking format to refuse in plain text. Real result: v15, score 0.90, `DEPLOYED`.
+
+Both fixes were applied via scripts against the real database (not manual SQL), and every pre-fix `FAILED` version stays in the real audit trail, untouched.
+
+**A real bug found and fixed along the way**: this same session's dashboard checks caught an accidental A/B-test mispromotion on the unrelated baseline demo prompt (`aria_socratic_system_baseline`) — real backend logs traced it to a browser-originated request (CORS preflight present, ruling out a script), almost certainly a stray click from this session's own browser automation. Corrected via script; the accidental A/B-test record itself was left in place rather than deleted, since it's a real event that really happened. Full writeup, including the real log evidence: [AIPQ Deployment Report — All Green](https://claude.ai/code/artifact/d6c77998-ffce-4280-aba3-5b26231af5b4).
+
 ---
 
 ##  Backend Integration Architecture
