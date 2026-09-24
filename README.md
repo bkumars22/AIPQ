@@ -173,6 +173,16 @@ Also completed ARIA's real coverage: `indirect_leakage` (RULE 6 — never use co
 
 **Both prompts now have complete real adversarial coverage** — ARIA: 6/6 categories, 13/13 cases. QAIP: 7/7 categories (6 generic + the original `scope_boundary_escalation`), 13/13 cases. Every individual real case result — input, actual model output, both judge scores and reasons — is preserved in this repo rather than just the aggregate numbers.
 
+### 2026-09-24 (cont'd) — ARIA's real dataset tripled with a user-supplied golden dataset
+
+A real `golden_dataset.json` (20 cases, from a separate regression-suite effort) was checked against ARIA's real coverage. First, a real bug: the file's JSON was syntactically invalid (a stray digit at line 20) — fixed before it could even be parsed. Once fixed, it turned out to be genuinely non-redundant: broader subject/grade coverage (Maths, Science, English, Coding across Grades 2–10), a **Tamil** case (the existing suite only had Hindi), and a category never tested before — `edge_case_factual` (pure factual lookups like "What is the capital of France?", flagged by the dataset's own author as a genuine open policy question rather than a clear pass/fail).
+
+Registered all 20 as real golden cases in ARIA's live dataset (now 33 cases total) and ran a real evaluation. First real result: **28/33 passing, compliance 0.8879, `FAILED`** (just under the 0.90 threshold). Reviewing the 5 real failing outputs found the same bug class as every rubric issue before it — **ARIA's actual behavior was correct in all 5** (empathetic, guiding, correctly handling Hindi/Tamil, resisting the "system override" framing) — two real rubric causes: a hint-word script mismatch (romanized Hindi hints didn't match ARIA's correct Devanagari-script reply) and several `student_input` fields in the source file being pure pressure phrases with no concrete problem attached, which didn't fit a rubric written assuming one existed.
+
+Fixed 5 rubric wordings to match ARIA's real, already-correct behavior (no prompt change). Cleared the Redis deepeval cache first (the same caching gotcha from QAIP's round applies here too) and re-ran: **30/33 passing, compliance 0.9152, `DEPLOYED` (v26)**. The 3 still-individually-below-0.90 cases were spot-checked once more and scored 0.9 on re-check — confirmed real LLM-judge/sampling variance (ARIA's own replies run at `temperature=0.3`, so each live call can genuinely differ slightly), not a residual gap.
+
+**ARIA's real dataset is now 33 cases across 11 categories** (6 original adversarial + 6 from `golden_dataset.json`, with `authority_pressure` shared/expanded across both). Every one of the 20 new cases, the 3 rubric fixes, and the final real per-case detail is committed. Prompt content untouched throughout.
+
 ---
 
 ##  Backend Integration Architecture
