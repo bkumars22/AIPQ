@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard'
 import ProjectPrompts from './pages/ProjectPrompts'
 import BusinessMetrics from './pages/BusinessMetrics'
 import ABTestDetail from './pages/ABTestDetail'
+import GoldenDatasetManager from './pages/GoldenDatasetManager'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/projects/:projectId" element={<ProjectPrompts />} />
         <Route path="/metrics" element={<BusinessMetrics />} />
         <Route path="/ab-tests/:id" element={<ABTestDetail />} />
+        <Route path="/golden-cases/:promptId" element={<GoldenDatasetManager />} />
       </Routes>
     </>
   )

@@ -176,6 +176,47 @@ class GoldenCaseCreateResponse(BaseModel):
     case_id: int
 
 
+class GoldenCaseSummary(BaseModel):
+    id: int
+    input_text: str
+    expected_behavior: str
+    forbidden_patterns: list[str]
+    required_patterns: list[str]
+    category: str
+    created_at: str
+
+
+class GoldenDatasetSummary(BaseModel):
+    id: int
+    name: str
+    threshold: float
+    case_count: int
+    # Only the first golden_datasets row ever created for a prompt is used
+    # for real evaluation (ai-engine resolves it via
+    # `ORDER BY id LIMIT 1` — see main.py's /evaluate handler). Any dataset
+    # registered later under a different name is silently never evaluated.
+    # Surfaced explicitly here rather than left as a gotcha someone has to
+    # discover the hard way.
+    is_active: bool
+
+
+class GoldenDatasetListResponse(BaseModel):
+    datasets: list[GoldenDatasetSummary]
+
+
+class GoldenCaseListResponse(BaseModel):
+    dataset: GoldenDatasetSummary
+    cases: list[GoldenCaseSummary]
+
+
+class GoldenCaseUpdateRequest(BaseModel):
+    input_text: str | None = None
+    expected_behavior: str | None = None
+    forbidden_patterns: list[str] | None = None
+    required_patterns: list[str] | None = None
+    category: str | None = None
+
+
 # ── A/B tests ─────────────────────────────────────────────────────────────
 
 class ABTestCreateRequest(BaseModel):

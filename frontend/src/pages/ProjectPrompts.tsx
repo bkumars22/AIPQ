@@ -286,6 +286,15 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
         </div>
       )}
 
+      <div className="flex justify-end">
+        <Link
+          to={`/golden-cases/${promptId}`}
+          className="text-xs text-sky-400 hover:text-sky-300"
+        >
+          Manage golden dataset &rarr;
+        </Link>
+      </div>
+
       <CompleteValidationPanel promptId={promptId} />
 
       <table className="w-full text-sm">

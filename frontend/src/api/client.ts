@@ -1,4 +1,4 @@
-import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_COMPLETENESS, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_PORTABILITY, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
+import { DEMO_AB_TEST_RESULTS, DEMO_BUSINESS_METRICS, DEMO_CAUSAL_ATTRIBUTION, DEMO_CAUSAL_IMPACT, DEMO_COMPLETENESS, DEMO_CONFIDENCE, DEMO_DRIFT, DEMO_GOLDEN_CASES, DEMO_GOLDEN_DATASETS, DEMO_PORTABILITY, DEMO_PROJECTS, DEMO_PROMPTS, DEMO_VERSIONS } from './demoData'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const DEV_JWT = import.meta.env.VITE_DEV_JWT || ''
@@ -28,6 +28,28 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     throw new Error(`${res.status} ${res.statusText} — ${await res.text()}`)
   }
   return res.json() as Promise<T>
+}
+
+async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${DEV_JWT}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText} — ${await res.text()}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${DEV_JWT}` },
+  })
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText} — ${await res.text()}`)
+  }
 }
 
 export interface ProjectSummary {
@@ -227,6 +249,40 @@ export interface CompletenessReport {
   layers: CompletenessLayer[]
 }
 
+export interface GoldenCaseSummary {
+  id: number
+  input_text: string
+  expected_behavior: string
+  forbidden_patterns: string[]
+  required_patterns: string[]
+  category: string
+  created_at: string
+}
+
+export interface GoldenDatasetSummary {
+  id: number
+  name: string
+  threshold: number
+  case_count: number
+  // Only the first (lowest-id) dataset created for a prompt is ever
+  // real-evaluated (ai-engine resolves it via `ORDER BY id LIMIT 1`) --
+  // any other dataset registered later is silently never evaluated.
+  is_active: boolean
+}
+
+export interface GoldenCaseListResponse {
+  dataset: GoldenDatasetSummary
+  cases: GoldenCaseSummary[]
+}
+
+export interface GoldenCaseUpdatePayload {
+  input_text?: string
+  expected_behavior?: string
+  forbidden_patterns?: string[]
+  required_patterns?: string[]
+  category?: string
+}
+
 export const api = {
   listProjects: () =>
     DEMO_MODE ? demoDelay(DEMO_PROJECTS)
@@ -306,4 +362,29 @@ export const api = {
       generated_at: new Date().toISOString(), layers: [],
     })
       : apiPost<CompletenessReport>(`/prompts/${promptId}/validate-complete`),
+
+  listGoldenDatasets: (promptId: number) =>
+    DEMO_MODE ? demoDelay(DEMO_GOLDEN_DATASETS[promptId] ?? [])
+      : apiGet<{ datasets: GoldenDatasetSummary[] }>(`/prompts/${promptId}/golden-datasets`).then(r => r.datasets),
+
+  listGoldenCases: (datasetId: number) =>
+    DEMO_MODE ? demoDelay(DEMO_GOLDEN_CASES[datasetId] ?? {
+      dataset: { id: datasetId, name: '', threshold: 0, case_count: 0, is_active: false }, cases: [],
+    })
+      : apiGet<GoldenCaseListResponse>(`/golden-datasets/${datasetId}/cases`),
+
+  createGoldenCase: (promptId: number, input_text: string, expected_behavior: string, category: string, forbidden_patterns: string[], required_patterns: string[]) =>
+    // Demo mode is a static, read-only preview — mutations resolve without persisting (same pattern as promoteABTest).
+    DEMO_MODE ? demoDelay({ case_id: -1 })
+      : apiPost<{ case_id: number }>('/golden-cases', {
+          prompt_id: promptId, input_text, expected_behavior, category, forbidden_patterns, required_patterns,
+        }),
+
+  updateGoldenCase: (caseId: number, payload: GoldenCaseUpdatePayload) =>
+    DEMO_MODE ? demoDelay({ id: caseId, input_text: '', expected_behavior: '', forbidden_patterns: [], required_patterns: [], category: '', created_at: '' } as GoldenCaseSummary)
+      : apiPatch<GoldenCaseSummary>(`/golden-cases/${caseId}`, payload),
+
+  deleteGoldenCase: (caseId: number) =>
+    DEMO_MODE ? demoDelay(undefined)
+      : apiDelete(`/golden-cases/${caseId}`),
 }
