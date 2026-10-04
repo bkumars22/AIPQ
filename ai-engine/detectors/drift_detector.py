@@ -16,6 +16,7 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from db import get_pool, get_redis_binary
+from rollback import switch_deployed_version
 
 logger = logging.getLogger("aipq.drift_detector")
 
@@ -193,19 +194,9 @@ class RollbackEngine:
                 return None  # already on the best version
 
             async with conn.transaction():
-                await conn.execute("UPDATE prompt_versions SET status = 'ROLLED_BACK' WHERE id = $1", from_version_id)
-                await conn.execute(
-                    "UPDATE prompt_versions SET status = 'DEPLOYED', deployed_at = now() WHERE id = $1", best["id"]
-                )
-                await conn.execute("UPDATE prompts SET current_version_id = $1 WHERE id = $2", best["id"], prompt_id)
-
-                rollback_row = await conn.fetchrow(
-                    """
-                    INSERT INTO rollbacks (prompt_id, from_version_id, to_version_id, triggered_by, reason, resolved_at)
-                    VALUES ($1, $2, $3, 'AUTOMATIC', $4, now())
-                    RETURNING id
-                    """,
-                    prompt_id, from_version_id, best["id"],
+                # The write itself is shared with the targeted rollback (rollback.py); this path records no requester.
+                rollback_id = await switch_deployed_version(
+                    conn, prompt_id, from_version_id, best["id"],
                     f"Critical drift (anomaly_score={drift_result.anomaly_score}): {drift_result.explanation}",
                 )
 
@@ -213,4 +204,4 @@ class RollbackEngine:
             "AIPQ auto-rolled back prompt %d: version %d -> %d (%s)",
             prompt_id, from_version_id, best["id"], drift_result.explanation,
         )
-        return {"rollback_id": rollback_row["id"], "from_version_id": from_version_id, "to_version_id": best["id"]}
+        return {"rollback_id": rollback_id, "from_version_id": from_version_id, "to_version_id": best["id"]}

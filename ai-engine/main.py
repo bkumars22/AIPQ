@@ -25,6 +25,7 @@ from db import close_all, get_pool
 from evaluators.pipeline import list_pending_reviews, resume_review, run_evaluation
 from predictors.causal_impact import CausalImpactAnalyzer
 from predictors.drift_predictor import PredictiveDriftEngine
+from rollback import RollbackRefused, rollback_to_version, targeted_rollback_enabled
 from scheduler import start_scheduler
 from validators.completeness_engine import CompletenessEngine
 from validators.portability import PromptPortabilityValidator
@@ -344,6 +345,35 @@ async def review(thread_id: str, payload: ReviewDecisionRequest):
 async def pending_reviews():
     """All currently-paused threads waiting on a human decision."""
     return {"pending_reviews": await list_pending_reviews()}
+
+
+class TargetedRollbackRequest(BaseModel):
+    prompt_id: int
+    to_version_number: int
+    from_version_number: int | None = None  # optional guard: refuse unless this is the deployed version
+    reason: str
+    requested_by: str
+
+
+_REFUSAL_STATUS = {"not_found": 404, "unknown_version": 404, "not_current": 409, "already_current": 409,
+                   "no_current": 409, "not_passed": 422, "invalid": 422}
+
+
+@app.post("/rollback")
+async def targeted_rollback(payload: TargetedRollbackRequest):
+    """
+    Restore a specific, previously passing version of a prompt (see rollback.py). Off unless QCP_ENABLED is set.
+    Internal, like /evaluate: the backend authenticates the caller and checks project ownership before calling this,
+    and records who asked; this service must not be reachable from outside the AIPQ network.
+    """
+    if not targeted_rollback_enabled():
+        raise HTTPException(status_code=403, detail="targeted rollback is disabled: set QCP_ENABLED=1 on the AIPQ services")
+    try:
+        return await rollback_to_version(
+            payload.prompt_id, payload.to_version_number, reason=payload.reason,
+            requested_by=payload.requested_by, from_version_number=payload.from_version_number)
+    except RollbackRefused as exc:
+        raise HTTPException(status_code=_REFUSAL_STATUS.get(exc.kind, 409), detail=str(exc)) from exc
 
 
 @app.get("/health")

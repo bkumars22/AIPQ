@@ -38,6 +38,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       AIPQ_WEBHOOK_SECRET: ${AIPQ_WEBHOOK_SECRET:-}
       AI_ENGINE_URL: http://ai-engine:8002
+      # Off by default. Enables the /qcp routes and the targeted rollback (set it on ai-engine too).
+      QCP_ENABLED: ${QCP_ENABLED:-false}
     ports:
       - "8001:8001"
     healthcheck:
@@ -59,6 +61,7 @@ services:
       - AIPQ_DATABASE_URL=postgresql://${POSTGRES_USER:-aipq}:${POSTGRES_PASSWORD:-aipq_local_2026}@db:5432/${POSTGRES_DB:-aipq}
       - REDIS_URL=redis://redis:6379/0
       - BACKEND_URL=http://backend:8001
+      - QCP_ENABLED=${QCP_ENABLED:-false}
       # Bare passthrough (no "=value") on purpose: this passes the host's
       # value through *only if set*, and omits the key from the container
       # entirely otherwise. That matters specifically for the AZURE_OPENAI_*
