@@ -4,6 +4,14 @@ from __future__ import annotations
 import os
 
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def qcp_enabled() -> bool:
+    """QCP_ENABLED switches on the /qcp routes and the targeted rollback. Off by default: nothing changes unless set."""
+    return os.getenv("QCP_ENABLED", "").strip().lower() in _TRUTHY
+
+
 def ai_engine_url() -> str:
     """
     Base URL for calling ai-engine.

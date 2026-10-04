@@ -6,6 +6,7 @@ tests/test_bct_results.py, and ai-engine is replaced by an httpx MockTransport.
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -176,12 +177,108 @@ class TestRootCause:
 
 
 class TestRollback:
-    ROLLBACK = {"incident_id": "inc-1", "prompt_id": "aria-tutor", "from_version": "v3", "to_version": "v2"}
+    ROLLBACK = {"incident_id": "inc-1", "prompt_id": "aria-tutor", "from_version": "v4", "to_version": "v3"}
+    DONE = {"rollback_id": 501, "prompt_id": 7, "from_version_id": 40, "from_version_number": 4, "to_version_id": 30,
+            "to_version_number": 3, "to_quality_score": 0.93, "requested_by": "x", "reason": "y"}
 
-    def test_is_501_with_clear_message(self, app):
+    @staticmethod
+    def engine(monkeypatch, status=200, body=None, seen=None):
+        def handler(req):
+            if seen is not None:
+                seen.append((req.method, req.url.path, json.loads(req.content)))
+            return httpx.Response(status, json=body if body is not None else TestRollback.DONE)
+
+        _ai_engine(monkeypatch, handler)
+
+    def test_restores_the_version_and_reports_what_happened(self, app, monkeypatch):
+        seen = []
+        self.engine(monkeypatch, seen=seen)
         r = _client(app).post("/qcp/rollback", json=self.ROLLBACK)
-        assert r.status_code == 501
-        assert "caller-specified version" in r.json()["detail"]
+        assert r.status_code == 200
+        assert r.json() == {"status": "succeeded", "to_version": "v3", "from_version": "v4", "rollback_id": 501,
+                            "requested_by": "x"}
+        assert [(m, p) for m, p, _ in seen] == [("POST", "/rollback")]
+        body = seen[0][2]
+        assert (body["prompt_id"], body["to_version_number"], body["from_version_number"]) == (7, 3, 4)
+
+    def test_the_audit_who_and_why_are_forwarded_with_the_authenticated_caller(self, app, monkeypatch):
+        seen = []
+        self.engine(monkeypatch, seen=seen)
+        _client(app).post("/qcp/rollback", json=self.ROLLBACK)
+        body = seen[0][2]
+        assert body["requested_by"] == "AI Quality Control Plane (api_key, project 10)"
+        assert "inc-1" in body["reason"]  # the default reason names the incident
+
+    def test_a_named_approver_and_reason_are_recorded_beside_the_authenticated_caller(self, app, monkeypatch):
+        seen = []
+        self.engine(monkeypatch, seen=seen)
+        _client(app).post("/qcp/rollback", json={**self.ROLLBACK, "requested_by": "alice", "reason": "v4 sped up and broke"})
+        assert seen[0][2]["requested_by"] == "alice via AI Quality Control Plane (api_key, project 10)"
+        assert seen[0][2]["reason"] == "v4 sped up and broke"
+
+    def test_the_contract_the_control_plane_already_sends_still_works(self, app, monkeypatch):
+        self.engine(monkeypatch)
+        # exactly the four fields the control plane's adapter sends, numeric ids and bare version numbers too
+        r = _client(app).post("/qcp/rollback", json={"incident_id": "i", "prompt_id": "7", "from_version": "4",
+                                                      "to_version": "3"})
+        assert r.status_code == 200 and r.json()["to_version"] == "v3"
+
+    @pytest.mark.parametrize("status_code,detail", [
+        (422, "version 5 failed the quality gate and was never deployed"),
+        (422, "version 6 has not finished evaluation, so it has not passed the quality gate"),
+        (404, "version 99 does not exist for this prompt"),
+        (409, "version 3 is already the deployed version"),
+        (409, "version 2 is not the deployed version (version 4 is)"),
+    ])
+    def test_refusals_come_through_with_the_reason_and_are_never_a_succeeded_body(self, app, monkeypatch, status_code, detail):
+        self.engine(monkeypatch, status=status_code, body={"detail": detail})
+        r = _client(app).post("/qcp/rollback", json=self.ROLLBACK)
+        assert r.status_code == status_code and r.json() == {"detail": detail}
+
+    def test_an_unreachable_ai_engine_is_502_and_says_nothing_was_rolled_back(self, app, monkeypatch):
+        def handler(req):
+            raise httpx.ConnectError("down")
+
+        _ai_engine(monkeypatch, handler)
+        r = _client(app).post("/qcp/rollback", json=self.ROLLBACK)
+        assert r.status_code == 502 and "no rollback was performed" in r.json()["detail"]
+
+    def test_an_ai_engine_error_is_502_not_a_made_up_success(self, app, monkeypatch):
+        self.engine(monkeypatch, status=500, body={"detail": "boom"})
+        r = _client(app).post("/qcp/rollback", json=self.ROLLBACK)
+        assert r.status_code == 502 and "no rollback was performed" in r.json()["detail"]
+
+    def test_an_unknown_prompt_never_reaches_the_ai_engine(self, app, monkeypatch):
+        seen = []
+        self.engine(monkeypatch, seen=seen)
+        r = _client(app).post("/qcp/rollback", json={**self.ROLLBACK, "prompt_id": "nope"})
+        assert r.status_code == 404 and seen == []
+
+    def test_another_projects_prompt_is_refused_before_the_ai_engine(self, app, monkeypatch):
+        seen = []
+        self.engine(monkeypatch, seen=seen)
+        r = _client(app, FakeConn(project_id=99)).post("/qcp/rollback", json={**self.ROLLBACK, "prompt_id": "7"})
+        assert r.status_code == 403 and seen == []
+
+    def test_a_bad_version_label_is_422_and_nothing_is_sent(self, app, monkeypatch):
+        seen = []
+        self.engine(monkeypatch, seen=seen)
+        for body in ({**self.ROLLBACK, "to_version": "latest"}, {**self.ROLLBACK, "from_version": "current"}):
+            assert _client(app).post("/qcp/rollback", json=body).status_code == 422
+        assert seen == []
+
+    def test_the_operation_itself_refuses_when_the_flag_is_off(self, monkeypatch):
+        """Defence in depth: even if the route were mounted, the operation checks the flag."""
+        import asyncio
+
+        from fastapi import HTTPException
+
+        from rollback_ops import request_targeted_rollback
+
+        monkeypatch.delenv("QCP_ENABLED", raising=False)
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(request_targeted_rollback(None, AuthContext(10, "api_key"), 7, 3, reason="r", requested_by="w"))
+        assert exc.value.status_code == 403 and "QCP_ENABLED" in exc.value.detail
 
     def test_requires_credentials(self, app):
         assert _client(app, auth=None).post("/qcp/rollback", json=self.ROLLBACK).status_code == 401

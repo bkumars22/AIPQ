@@ -6,27 +6,26 @@ docs/decisions/003-simulated-adapters.md).
 Feature-flagged: main.py only mounts this router when QCP_ENABLED is truthy,
 so default behaviour is unchanged. Every route is a thin wrapper over an
 existing route function in routers/prompts.py (same auth, same project
-ownership check) and only reports what those functions really return. An
-operation with no real equivalent here answers 501 — see docs/QCP_INTEGRATION.md.
+ownership check) and only reports what those functions really return. The
+rollback goes through rollback_ops.py to the ai-engine's targeted rollback, which
+only restores a version that previously passed the quality gate. An operation with
+no real equivalent here answers 501 — see docs/QCP_INTEGRATION.md.
 """
 from __future__ import annotations
 
-import os
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 
 from auth.dependencies import AuthContext, get_auth_context
+from config import qcp_enabled
+from rollback_ops import request_targeted_rollback, requester
 from routers.prompts import get_current_version, get_prompt_causal_impact
 
 router = APIRouter(prefix="/qcp", tags=["qcp"])
 
-_TRUTHY = {"1", "true", "yes", "on"}
-
-
-def qcp_enabled() -> bool:
-    return os.getenv("QCP_ENABLED", "").strip().lower() in _TRUTHY
+__all__ = ["router", "qcp_enabled"]
 
 
 class QcpRootCauseRequest(BaseModel):
@@ -52,6 +51,18 @@ class QcpRollbackRequest(BaseModel):
     prompt_id: str
     from_version: str
     to_version: str
+    # Optional, so the contract the control plane already speaks keeps working. When it sends the human approver and
+    # the reason, they are recorded in AIPQ's rollbacks audit row, beside the authenticated caller.
+    requested_by: str | None = None
+    reason: str | None = None
+
+
+class QcpRollbackResponse(BaseModel):
+    status: str  # "succeeded": a refused or failed rollback is an HTTP error, never a "succeeded" body
+    to_version: str
+    rollback_id: int
+    from_version: str
+    requested_by: str
 
 
 def _version_number(value: str) -> int:
@@ -125,19 +136,26 @@ async def qcp_rootcause(
     )
 
 
-@router.post("/rollback")
+@router.post("/rollback", response_model=QcpRollbackResponse)
 async def qcp_rollback(
     payload: QcpRollbackRequest,
+    request: Request,
     auth: AuthContext = Depends(get_auth_context),
 ):
     """
-    Gap. AIPQ's only rollback is RollbackEngine.rollback_if_critical (ai-engine), which
-    fires on CRITICAL drift and chooses the target itself (best of the last 5 versions).
-    Nothing rolls back to a caller-specified version, and re-implementing that here would
-    duplicate business logic, so this answers 501 instead of pretending.
+    Restore a specific, previously passing version of a prompt.
+
+    Wraps the ai-engine's targeted rollback (rollback_ops.request_targeted_rollback), which refuses anything that never
+    passed the quality gate (failed, still testing, unknown, already deployed) with a 404/409/422 and a clear message,
+    and records who asked and why in the rollbacks table. The AUTOMATIC rollback is a separate path and is unchanged.
     """
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        "AIPQ has no rollback to a caller-specified version. Its only rollback is automatic "
-        "(ai-engine RollbackEngine, on CRITICAL drift). See docs/QCP_INTEGRATION.md.",
-    )
+    prompt_id = await _resolve_prompt_id(request, auth, payload.prompt_id)
+    to_version = _version_number(payload.to_version)
+    from_version = _version_number(payload.from_version)
+    reason = (payload.reason or "").strip() or f"Requested by the AI Quality Control Plane for incident {payload.incident_id}"
+    result = await request_targeted_rollback(
+        request, auth, prompt_id, to_version, from_version_number=from_version, reason=reason,
+        requested_by=requester(auth, payload.requested_by, "AI Quality Control Plane"))
+    return QcpRollbackResponse(
+        status="succeeded", to_version=f"v{result['to_version_number']}", from_version=f"v{result['from_version_number']}",
+        rollback_id=result["rollback_id"], requested_by=result["requested_by"])
