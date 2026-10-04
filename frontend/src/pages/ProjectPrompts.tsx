@@ -286,7 +286,13 @@ function PromptDetail({ promptId, projectId, promptName }: { promptId: number; p
         </div>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-4">
+        <Link
+          to={`/prompts/${promptId}/rollbacks`}
+          className="text-xs text-sky-400 hover:text-sky-300"
+        >
+          Rollbacks &amp; version history &rarr;
+        </Link>
         <Link
           to={`/golden-cases/${promptId}`}
           className="text-xs text-sky-400 hover:text-sky-300"

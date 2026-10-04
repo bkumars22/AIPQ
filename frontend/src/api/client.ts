@@ -283,6 +283,73 @@ export interface GoldenCaseUpdatePayload {
   category?: string
 }
 
+export interface RollbackVersion {
+  version_number: number
+  status: string
+  quality_score: number | null
+  deployed_at: string | null
+  changed_by: string
+  change_message: string | null
+  is_current: boolean
+  can_roll_back_to: boolean   // a hint for the UI; the ai-engine enforces the real rule
+  why_not: string | null
+}
+
+export interface RollbackRecord {
+  id: number
+  triggered_at: string
+  resolved_at: string | null
+  triggered_by: 'AUTOMATIC' | 'MANUAL'
+  from_version_number: number
+  to_version_number: number
+  requested_by: string | null   // only manual rollbacks record who asked
+  reason: string | null
+}
+
+export interface RollbackHistory {
+  prompt_id: number
+  prompt_name: string
+  targeted_rollback_enabled: boolean
+  current_version_number: number | null
+  versions: RollbackVersion[]
+  rollbacks: RollbackRecord[]
+}
+
+export interface RollbackResult {
+  rollback_id: number
+  from_version_number: number
+  to_version_number: number
+  to_quality_score: number | null
+  requested_by: string
+  reason: string
+}
+
+// Demo builds have no backend and no database, so there is nothing to roll back: the history is built from the demo
+// versions, the "may be restored" labels follow the same rule as the real backend, no rollbacks are listed (none were
+// captured), and the action is switched off.
+function demoRollbackHistory(promptId: number): RollbackHistory {
+  const versions = DEMO_VERSIONS[promptId] ?? []
+  const name = Object.values(DEMO_PROMPTS).flat().find(p => p.id === promptId)?.prompt_name ?? `prompt ${promptId}`
+  const current = versions.find(v => v.status === 'DEPLOYED')
+  const rows = [...versions].sort((a, b) => b.version_number - a.version_number).map(v => {
+    const isCurrent = v.id === current?.id
+    const passed = (v.status === 'DEPLOYED' || v.status === 'ROLLED_BACK') && v.quality_score !== null
+    const why = isCurrent ? 'This is the deployed version.'
+      : v.status === 'FAILED' ? 'Failed the quality gate and was never deployed.'
+      : v.status === 'TESTING' ? 'Still being evaluated.'
+      : !passed ? 'No passing quality score is recorded.' : null
+    return {
+      version_number: v.version_number, status: v.status, quality_score: v.quality_score, deployed_at: v.deployed_at,
+      changed_by: v.changed_by, change_message: v.change_message, is_current: isCurrent,
+      can_roll_back_to: why === null, why_not: why,
+    }
+  })
+  return {
+    prompt_id: promptId, prompt_name: name, targeted_rollback_enabled: false,
+    current_version_number: current?.version_number ?? null, versions: rows, rollbacks: [],
+  }
+}
+
 export const api = {
   listProjects: () =>
     DEMO_MODE ? demoDelay(DEMO_PROJECTS)
@@ -362,6 +429,16 @@ export const api = {
       generated_at: new Date().toISOString(), layers: [],
     })
       : apiPost<CompletenessReport>(`/prompts/${promptId}/validate-complete`),
+
+  rollbackHistory: (promptId: number) =>
+    DEMO_MODE ? demoDelay(demoRollbackHistory(promptId))
+      : apiGet<RollbackHistory>(`/prompts/${promptId}/rollbacks`),
+
+  rollBackPrompt: (promptId: number, toVersionNumber: number, reason: string, requestedBy?: string) =>
+    DEMO_MODE ? Promise.reject<RollbackResult>(new Error('Rollback is not available in the demo.'))
+      : apiPost<RollbackResult>(`/prompts/${promptId}/rollback`, {
+          to_version_number: toVersionNumber, reason, requested_by: requestedBy || null,
+        }),
 
   listGoldenDatasets: (promptId: number) =>
     DEMO_MODE ? demoDelay(DEMO_GOLDEN_DATASETS[promptId] ?? [])
